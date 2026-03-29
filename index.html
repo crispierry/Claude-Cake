@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Celebration Cake</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #1a1a2e; font-family: 'Georgia', serif; }
+  canvas { display: block; }
+  #instructions {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    padding: 12px 24px;
+    border-radius: 20px;
+    font-size: 14px;
+    pointer-events: none;
+    transition: opacity 0.5s;
+    text-align: center;
+  }
+  #title {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    font-size: 24px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    pointer-events: none;
+    text-align: center;
+  }
+  #light-btn {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #ff6600, #ff9900);
+    color: #fff;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 16px;
+    font-family: 'Georgia', serif;
+    box-shadow: 0 4px 15px rgba(255,102,0,0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  #light-btn:hover { transform: translateX(-50%) scale(1.05); box-shadow: 0 6px 20px rgba(255,102,0,0.6); }
+  #reset-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    display: none;
+    transition: background 0.3s;
+  }
+  #reset-btn:hover { background: rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+
+<div id="title">Congratulations Tati!</div>
+<div id="instructions">Drag to rotate &bull; Scroll to zoom &bull; Click the candle to light it</div>
+<button id="light-btn" onclick="startBurn()">Light the Candle</button>
+<button id="reset-btn" onclick="resetCake()">Reset</button>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Scene setup ──
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog = new THREE.FogExp2(0x1a1a2e, 0.015);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 6, 10);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+// ── Controls ──
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 4;
+controls.maxDistance = 20;
+controls.target.set(0, 2, 0);
+
+// ── Lighting ──
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.0);
+dirLight.position.set(5, 10, 5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0xe6f0ff, 0.3);
+fillLight.position.set(-5, 5, -5);
+scene.add(fillLight);
+
+// ── Materials ──
+const frostingMaterial = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.3,
+  metalness: 0.0,
+});
+
+const cakeSideMaterial = new THREE.MeshStandardMaterial({
+  color: 0xfff8f0,
+  roughness: 0.5,
+  metalness: 0.0,
+});
+
+// ── Platform / Table ──
+const tableGeo = new THREE.CylinderGeometry(6, 6, 0.2, 64);
+const tableMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.7 });
+const table = new THREE.Mesh(tableGeo, tableMat);
+table.position.y = -0.1;
+table.receiveShadow = true;
+scene.add(table);
+
+// Cake plate
+const plateGeo = new THREE.CylinderGeometry(3.8, 4, 0.15, 64);
+const plateMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.2, metalness: 0.1 });
+const plate = new THREE.Mesh(plateGeo, plateMat);
+plate.position.y = 0.08;
+scene.add(plate);
+
+// ── Cake layers ──
+const cakeGroup = new THREE.Group();
+scene.add(cakeGroup);
+
+// Bottom layer
+const bottomCakeGeo = new THREE.CylinderGeometry(3.2, 3.4, 1.8, 64);
+const bottomCake = new THREE.Mesh(bottomCakeGeo, cakeSideMaterial);
+bottomCake.position.y = 1.05;
+bottomCake.castShadow = true;
+cakeGroup.add(bottomCake);
+
+// Bottom frosting rim
+const bottomRimGeo = new THREE.TorusGeometry(3.3, 0.12, 12, 64);
+const bottomRim = new THREE.Mesh(bottomRimGeo, frostingMaterial);
+bottomRim.position.y = 1.95;
+bottomRim.rotation.x = Math.PI / 2;
+cakeGroup.add(bottomRim);
+
+// Hidden reveal layer (sits on top of bottom cake, below top cake)
+const revealGeo = new THREE.CylinderGeometry(2.8, 2.8, 0.05, 64);
+const revealMat = new THREE.MeshStandardMaterial({ color: 0xfff8f0, roughness: 0.4 });
+const revealLayer = new THREE.Mesh(revealGeo, revealMat);
+revealLayer.position.y = 1.98;
+cakeGroup.add(revealLayer);
+
+// Top layer (will burn away)
+const topCakeGeo = new THREE.CylinderGeometry(2.6, 2.8, 1.4, 64);
+
+// Custom burn shader material for top cake
+const burnUniforms = {
+  burnProgress: { value: 0.0 },
+  baseColor: { value: new THREE.Color(0xfff8f0) },
+  time: { value: 0.0 },
+};
+
+const burnVertexShader = `
+  varying vec2 vUv;
+  varying vec3 vPosition;
+  void main() {
+    vUv = uv;
+    vPosition = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const burnFragmentShader = `
+  uniform float burnProgress;
+  uniform vec3 baseColor;
+  uniform float time;
+  varying vec2 vUv;
+  varying vec3 vPosition;
+
+  // Simple noise
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
+  void main() {
+    // Radial distance from center (xz plane)
+    float dist = length(vPosition.xz) / 2.8;
+
+    // Add noise for organic burn edge
+    float n = noise(vPosition.xz * 3.0 + time * 0.5) * 0.15;
+    float burnEdge = burnProgress * 1.5;
+    float burnDist = dist + n;
+
+    // Ember glow at the burn edge
+    float edgeWidth = 0.08;
+    float emberGlow = smoothstep(burnEdge - edgeWidth, burnEdge, burnDist) *
+                      (1.0 - smoothstep(burnEdge, burnEdge + edgeWidth, burnDist));
+
+    // Discard burnt area
+    if (burnDist < burnEdge - edgeWidth && burnProgress > 0.01) {
+      discard;
+    }
+
+    vec3 color = baseColor;
+
+    // Add ember orange/red at edge
+    vec3 emberColor = mix(vec3(1.0, 0.3, 0.0), vec3(1.0, 0.8, 0.0), noise(vPosition.xz * 8.0 + time));
+    color = mix(color, emberColor, emberGlow * 2.0);
+
+    // Darken near burn edge
+    float charr = smoothstep(burnEdge - edgeWidth * 2.0, burnEdge - edgeWidth, burnDist);
+    color = mix(color, vec3(0.15, 0.08, 0.02), charr * 0.6 * step(0.01, burnProgress));
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+const burnMaterial = new THREE.ShaderMaterial({
+  uniforms: burnUniforms,
+  vertexShader: burnVertexShader,
+  fragmentShader: burnFragmentShader,
+  side: THREE.DoubleSide,
+});
+
+const topCake = new THREE.Mesh(topCakeGeo, burnMaterial);
+topCake.position.y = 2.65;
+topCake.castShadow = true;
+cakeGroup.add(topCake);
+
+// Top frosting rim
+const topRimGeo = new THREE.TorusGeometry(2.7, 0.1, 12, 64);
+const topRim = new THREE.Mesh(topRimGeo, frostingMaterial);
+topRim.position.y = 3.35;
+topRim.rotation.x = Math.PI / 2;
+cakeGroup.add(topRim);
+
+// Top surface disc
+const topSurfaceGeo = new THREE.CircleGeometry(2.6, 64);
+const topSurfaceMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, side: THREE.DoubleSide });
+const topSurface = new THREE.Mesh(topSurfaceGeo, topSurfaceMat);
+topSurface.position.y = 3.36;
+topSurface.rotation.x = -Math.PI / 2;
+cakeGroup.add(topSurface);
+
+// ── University Logos ──
+const textureLoader = new THREE.TextureLoader();
+const logoGroup = new THREE.Group();
+cakeGroup.add(logoGroup);
+
+const schools = [
+  { name: 'Michigan', file: 'logos/michigan.png' },
+  { name: 'Maryland', file: 'logos/maryland.png' },
+  { name: 'Penn State', file: 'logos/pennstate.png' },
+  { name: 'Rutgers', file: 'logos/rutgers.png' },
+  { name: 'UConn', file: 'logos/uconn.png' },
+  { name: 'Syracuse', file: 'logos/syracuse.png' },
+  { name: 'UMass', file: 'logos/umass.png' },
+  { name: 'Boston U', file: 'logos/boston.png' },
+  { name: 'LMU', file: 'logos/loyola.png' },
+  { name: 'Delaware', file: 'logos/delaware.png' },
+  { name: 'Vermont', file: 'logos/vermont.png' },
+  { name: 'Hawaii', file: 'logos/hawaii.png' },
+];
+
+// School colors for fallback
+const schoolColors = [
+  '#00274C', '#E21833', '#041E42', '#CC0033',
+  '#000E2F', '#F76900', '#881c1c', '#CC0000',
+  '#8C2332', '#00539F', '#005710', '#024731',
+];
+
+const logoMeshes = [];
+
+schools.forEach((school, i) => {
+  const angle = (i / schools.length) * Math.PI * 2 - Math.PI / 2;
+  const radius = 1.7;
+  const x = Math.cos(angle) * radius;
+  const z = Math.sin(angle) * radius;
+
+  const logoGeo = new THREE.PlaneGeometry(0.7, 0.7);
+
+  // Create a canvas-based fallback texture
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Draw colored circle background
+  ctx.fillStyle = schoolColors[i];
+  ctx.beginPath();
+  ctx.arc(128, 128, 120, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw school name
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 36px Georgia';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const words = school.name.split(' ');
+  if (words.length > 1) {
+    ctx.font = 'bold 30px Georgia';
+    ctx.fillText(words[0], 128, 110);
+    ctx.fillText(words.slice(1).join(' '), 128, 150);
+  } else {
+    ctx.fillText(school.name, 128, 128);
+  }
+
+  const fallbackTexture = new THREE.CanvasTexture(canvas);
+
+  const logoMat = new THREE.MeshStandardMaterial({
+    map: fallbackTexture,
+    transparent: true,
+    roughness: 0.5,
+    side: THREE.DoubleSide,
+  });
+
+  // Try to load actual logo image
+  textureLoader.load(
+    school.file,
+    (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      logoMat.map = texture;
+      logoMat.needsUpdate = true;
+    },
+    undefined,
+    () => { /* fallback already set */ }
+  );
+
+  const logoMesh = new THREE.Mesh(logoGeo, logoMat);
+  logoMesh.position.set(x, 3.38, z);
+  logoMesh.rotation.x = -Math.PI / 2;
+  logoGroup.add(logoMesh);
+  logoMeshes.push(logoMesh);
+});
+
+// ── Reveal layer: logos + labels + circular text ──
+const revealLogoMeshes = [];
+
+// Create a single canvas for the entire reveal surface
+const revealCanvas = document.createElement('canvas');
+revealCanvas.width = 1024;
+revealCanvas.height = 1024;
+const rCtx = revealCanvas.getContext('2d');
+
+// Draw circular text "It is now down to two"
+function drawCircularText(ctx, text, cx, cy, radius, startAngle) {
+  ctx.save();
+  ctx.font = 'bold 42px Georgia';
+  ctx.fillStyle = '#C0392B';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const chars = text.split('');
+  // Measure total arc length needed
+  const charWidths = chars.map(c => ctx.measureText(c).width);
+  const totalWidth = charWidths.reduce((a, b) => a + b, 0);
+  const totalAngle = totalWidth / radius;
+
+  let angle = startAngle - totalAngle / 2;
+  for (let i = 0; i < chars.length; i++) {
+    const charAngle = charWidths[i] / radius;
+    angle += charAngle / 2;
+    ctx.save();
+    ctx.translate(
+      cx + Math.cos(angle) * radius,
+      cy + Math.sin(angle) * radius
+    );
+    ctx.rotate(angle + Math.PI / 2);
+    ctx.fillText(chars[i], 0, 0);
+    ctx.restore();
+    angle += charAngle / 2;
+  }
+  ctx.restore();
+}
+
+// Draw circular text along top arc
+drawCircularText(rCtx, 'It is now down to two', 512, 512, 420, -Math.PI / 2);
+// Draw it again along bottom arc for full circle feel
+drawCircularText(rCtx, '~ ~ ~ ~ ~ ~ ~ ~ ~', 512, 512, 420, Math.PI / 2);
+
+// Draw "Michigan" label — centered under Michigan logo at x=-0.85 on 5.2-unit plane
+rCtx.fillStyle = '#00274C';
+rCtx.font = 'bold 48px Georgia';
+rCtx.textAlign = 'center';
+rCtx.textBaseline = 'top';
+rCtx.fillText('Michigan', 344, 630);
+
+// Draw "Maryland" label — centered under Maryland logo at x=0.85 on 5.2-unit plane
+rCtx.fillStyle = '#E21833';
+rCtx.font = 'bold 48px Georgia';
+rCtx.fillText('Maryland', 680, 630);
+
+const revealSurfaceTexture = new THREE.CanvasTexture(revealCanvas);
+
+// Reveal surface plane with text
+const revealTextGeo = new THREE.PlaneGeometry(5.2, 5.2);
+const revealTextMat = new THREE.MeshStandardMaterial({
+  map: revealSurfaceTexture,
+  transparent: true,
+  opacity: 0,
+  roughness: 0.4,
+  side: THREE.DoubleSide,
+});
+const revealText = new THREE.Mesh(revealTextGeo, revealTextMat);
+revealText.position.y = 2.06;
+revealText.rotation.x = -Math.PI / 2;
+cakeGroup.add(revealText);
+revealLogoMeshes.push(revealText);
+
+// Michigan logo
+const michiganRevealGeo = new THREE.PlaneGeometry(1.5, 1.5);
+const michiganRevealMat = new THREE.MeshStandardMaterial({
+  transparent: true,
+  opacity: 0,
+  roughness: 0.4,
+  side: THREE.DoubleSide,
+});
+textureLoader.load('logos/michigan.png', (tex) => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  michiganRevealMat.map = tex;
+  michiganRevealMat.needsUpdate = true;
+});
+const michiganReveal = new THREE.Mesh(michiganRevealGeo, michiganRevealMat);
+michiganReveal.position.set(-0.85, 2.07, -0.15);
+michiganReveal.rotation.x = -Math.PI / 2;
+cakeGroup.add(michiganReveal);
+revealLogoMeshes.push(michiganReveal);
+
+// Maryland logo
+const marylandRevealGeo = new THREE.PlaneGeometry(1.5, 1.5);
+const marylandRevealMat = new THREE.MeshStandardMaterial({
+  transparent: true,
+  opacity: 0,
+  roughness: 0.4,
+  side: THREE.DoubleSide,
+});
+textureLoader.load('logos/maryland.png', (tex) => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  marylandRevealMat.map = tex;
+  marylandRevealMat.needsUpdate = true;
+});
+const marylandReveal = new THREE.Mesh(marylandRevealGeo, marylandRevealMat);
+marylandReveal.position.set(0.85, 2.07, -0.15);
+marylandReveal.rotation.x = -Math.PI / 2;
+cakeGroup.add(marylandReveal);
+revealLogoMeshes.push(marylandReveal);
+
+// ── Candle ──
+const candleGroup = new THREE.Group();
+candleGroup.position.y = 3.36;
+cakeGroup.add(candleGroup);
+
+// Candle body
+const candleGeo = new THREE.CylinderGeometry(0.08, 0.1, 1.0, 16);
+const candleMat = new THREE.MeshStandardMaterial({ color: 0xff6b9d, roughness: 0.6 });
+const candle = new THREE.Mesh(candleGeo, candleMat);
+candle.position.y = 0.5;
+candle.castShadow = true;
+candleGroup.add(candle);
+
+// Invisible hitbox (larger cylinder for easier clicking)
+const hitboxGeo = new THREE.CylinderGeometry(0.35, 0.35, 1.4, 16);
+const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
+const candleHitbox = new THREE.Mesh(hitboxGeo, hitboxMat);
+candleHitbox.position.y = 0.6;
+candleGroup.add(candleHitbox);
+
+// Wick
+const wickGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.15, 8);
+const wickMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+const wick = new THREE.Mesh(wickGeo, wickMat);
+wick.position.y = 1.075;
+candleGroup.add(wick);
+
+// Flame (hidden initially)
+const flameGroup = new THREE.Group();
+flameGroup.visible = false;
+flameGroup.position.y = 1.25;
+candleGroup.add(flameGroup);
+
+// Outer flame
+const outerFlameGeo = new THREE.SphereGeometry(0.12, 16, 16);
+outerFlameGeo.scale(1, 2.2, 1);
+const outerFlameMat = new THREE.MeshBasicMaterial({
+  color: 0xff6600,
+  transparent: true,
+  opacity: 0.7,
+});
+const outerFlame = new THREE.Mesh(outerFlameGeo, outerFlameMat);
+flameGroup.add(outerFlame);
+
+// Inner flame
+const innerFlameGeo = new THREE.SphereGeometry(0.06, 16, 16);
+innerFlameGeo.scale(1, 2.0, 1);
+const innerFlameMat = new THREE.MeshBasicMaterial({
+  color: 0xffff00,
+  transparent: true,
+  opacity: 0.9,
+});
+const innerFlame = new THREE.Mesh(innerFlameGeo, innerFlameMat);
+innerFlame.position.y = -0.02;
+flameGroup.add(innerFlame);
+
+// Flame light
+const flameLight = new THREE.PointLight(0xff8800, 0, 8);
+flameLight.position.copy(flameGroup.position);
+flameLight.position.y += candleGroup.position.y;
+cakeGroup.add(flameLight);
+
+// ── Interaction ──
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let isBurning = false;
+let burnStartTime = 0;
+const burnDuration = 4.0; // seconds
+
+// Track mouse to distinguish click from drag
+let mouseDownPos = { x: 0, y: 0 };
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  mouseDownPos.x = e.clientX;
+  mouseDownPos.y = e.clientY;
+});
+
+renderer.domElement.addEventListener('pointerup', (event) => {
+  // Ignore if mouse moved (was a drag/rotate)
+  const dx = event.clientX - mouseDownPos.x;
+  const dy = event.clientY - mouseDownPos.y;
+  if (Math.sqrt(dx * dx + dy * dy) > 5) return;
+
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects([candle, wick, candleHitbox]);
+
+  if (hits.length > 0 && !isBurning) {
+    startBurn();
+  }
+});
+
+window.startBurn = startBurn;
+function startBurn() {
+  isBurning = true;
+  burnStartTime = performance.now() / 1000;
+
+  // Show flame
+  flameGroup.visible = true;
+  flameLight.intensity = 2.0;
+
+  // Hide instruction text and light button
+  document.getElementById('instructions').style.opacity = '0';
+  document.getElementById('light-btn').style.display = 'none';
+
+  // Show reset button after burn completes
+  setTimeout(() => {
+    document.getElementById('reset-btn').style.display = 'block';
+  }, burnDuration * 1000 + 500);
+}
+
+window.resetCake = function() {
+  isBurning = false;
+  burnUniforms.burnProgress.value = 0;
+  flameGroup.visible = false;
+  flameLight.intensity = 0;
+  revealLogoMeshes.forEach(m => { m.material.opacity = 0; });
+
+  // Reset top cake and surface
+  topCake.visible = true;
+  topSurface.visible = true;
+  topRim.visible = true;
+  topSurfaceMat.opacity = 1;
+  topSurfaceMat.transparent = false;
+
+  // Reset candle and top frosting dots
+  candleGroup.visible = true;
+  topDots.forEach(dot => { dot.visible = true; });
+
+  // Reset logos
+  logoMeshes.forEach(m => {
+    m.material.opacity = 1;
+    m.visible = true;
+  });
+
+  document.getElementById('reset-btn').style.display = 'none';
+  document.getElementById('light-btn').style.display = 'block';
+  document.getElementById('instructions').style.opacity = '1';
+};
+
+// ── Frosting decorations (small dots around rim) ──
+for (let i = 0; i < 32; i++) {
+  const angle = (i / 32) * Math.PI * 2;
+  const dotGeo = new THREE.SphereGeometry(0.06, 8, 8);
+  const dot = new THREE.Mesh(dotGeo, frostingMaterial);
+  dot.position.set(
+    Math.cos(angle) * 3.3,
+    1.95,
+    Math.sin(angle) * 3.3
+  );
+  cakeGroup.add(dot);
+}
+
+const topDots = [];
+for (let i = 0; i < 24; i++) {
+  const angle = (i / 24) * Math.PI * 2;
+  const dotGeo = new THREE.SphereGeometry(0.05, 8, 8);
+  const dot = new THREE.Mesh(dotGeo, frostingMaterial);
+  dot.position.set(
+    Math.cos(angle) * 2.7,
+    3.35,
+    Math.sin(angle) * 2.7
+  );
+  cakeGroup.add(dot);
+  topDots.push(dot);
+}
+
+// ── Animation loop ──
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const elapsed = clock.getElapsedTime();
+
+  controls.update();
+
+  // Flame animation
+  if (flameGroup.visible) {
+    const flicker = Math.sin(elapsed * 15) * 0.03 + Math.sin(elapsed * 23) * 0.02;
+    flameGroup.scale.set(
+      1 + Math.sin(elapsed * 12) * 0.1,
+      1 + Math.sin(elapsed * 8) * 0.08,
+      1 + Math.sin(elapsed * 10) * 0.1
+    );
+    flameGroup.position.x = flicker;
+    flameGroup.position.z = Math.sin(elapsed * 17) * 0.02;
+
+    flameLight.intensity = 2.0 + Math.sin(elapsed * 15) * 0.5;
+  }
+
+  // Burn animation
+  if (isBurning) {
+    const now = performance.now() / 1000;
+    const t = Math.min((now - burnStartTime) / burnDuration, 1.0);
+
+    burnUniforms.burnProgress.value = t;
+    burnUniforms.time.value = elapsed;
+
+    // Fade all top-layer logos immediately as burn starts — hide them fast
+    if (t > 0.05) {
+      const logoFade = Math.max(0, 1 - (t - 0.05) * 4);
+      logoMeshes.forEach((mesh) => {
+        mesh.material.opacity = logoFade;
+        mesh.material.transparent = true;
+        if (logoFade <= 0) mesh.visible = false;
+      });
+    }
+
+    // Fade top surface and rim
+    if (t > 0.1) {
+      const surfaceFade = Math.max(0, 1 - (t - 0.1) * 3);
+      topSurfaceMat.transparent = true;
+      topSurfaceMat.opacity = surfaceFade;
+      if (surfaceFade <= 0) {
+        topSurface.visible = false;
+        topRim.visible = false;
+      }
+    }
+
+    // Fade top frosting dots
+    if (t > 0.2) {
+      topDots.forEach(dot => {
+        dot.visible = (t < 0.5);
+      });
+    }
+
+    // Hide top cake cylinder once burn is mostly done (so it doesn't block reveal)
+    if (t > 0.85) {
+      topCake.visible = false;
+    }
+
+    // Reveal Michigan + Maryland logos — only after top layer is mostly gone
+    if (t > 0.75) {
+      const revealOpacity = Math.min(1, (t - 0.75) * 4);
+      revealLogoMeshes.forEach(m => { m.material.opacity = revealOpacity; });
+    }
+
+    // Hide candle as soon as top layer is gone
+    if (t > 0.85) {
+      candleGroup.visible = false;
+      flameGroup.visible = false;
+      flameLight.intensity = 0;
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ── Resize ──
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+</script>
+</body>
+</html>
