@@ -106,23 +106,23 @@ function computeCameraParams() {
   if (aspect >= 1.4) {
     // Wide landscape
     fov = 36;
-    camY = 5.0;
-    camZ = 10;
+    camY = 9.0;
+    camZ = 7;
   } else if (aspect >= 1) {
     // Landscape / square
     fov = 38;
-    camY = 5.2;
-    camZ = 10.5;
+    camY = 9.0;
+    camZ = 7.5;
   } else if (aspect >= 0.6) {
     // Moderate portrait (tablet-ish)
     fov = 44;
-    camY = 5.5;
-    camZ = 13;
+    camY = 9.5;
+    camZ = 9;
   } else {
     // Narrow portrait (phone)
     fov = 50;
-    camY = 6.0;
-    camZ = 15;
+    camY = 10.0;
+    camZ = 10;
   }
 
   return { fov, camY, camZ, targetY: cakeMidY };
@@ -566,10 +566,18 @@ const burnFragmentShader = `
     // Radial distance from center (xz plane)
     float dist = length(vPosition.xz) / 2.8;
 
+    // For wall fragments (high radial distance), blend in vertical burn:
+    // top of wall burns first, bottom burns last
+    float wallness = smoothstep(0.75, 0.95, dist); // 0=inner surface, 1=wall
+    float normalizedY = (vPosition.y + 0.7) / 1.4;  // 0=bottom, 1=top of cylinder
+    // Wall effective distance: top=0.82, bottom=1.12 (burns top-down)
+    float wallDist = 0.82 + (1.0 - normalizedY) * 0.3;
+    float effectiveDist = mix(dist, wallDist, wallness);
+
     // Add noise for organic burn edge
     float n = noise(vPosition.xz * 3.0 + time * 0.5) * 0.15;
-    float burnEdge = burnProgress * 1.1;
-    float burnDist = dist + n;
+    float burnEdge = burnProgress * 1.2;
+    float burnDist = effectiveDist + n;
 
     // Ember glow at the burn edge
     float edgeWidth = 0.08;
@@ -583,13 +591,14 @@ const burnFragmentShader = `
 
     vec3 color = baseColor;
 
-    // Add ember orange/red at edge
+    // Add ember orange/red at edge — only when burn edge is actually nearby
     vec3 emberColor = mix(vec3(1.0, 0.3, 0.0), vec3(1.0, 0.8, 0.0), noise(vPosition.xz * 8.0 + time));
     color = mix(color, emberColor, emberGlow * 2.0);
 
-    // Darken near burn edge
-    float charr = smoothstep(burnEdge - edgeWidth * 2.0, burnEdge - edgeWidth, burnDist);
-    color = mix(color, vec3(0.15, 0.08, 0.02), charr * 0.6 * step(0.01, burnProgress));
+    // Darken near burn edge — only in a narrow band around the edge, not everywhere
+    float charBand = smoothstep(burnEdge - edgeWidth * 3.0, burnEdge - edgeWidth, burnDist) *
+                     (1.0 - smoothstep(burnEdge - edgeWidth, burnEdge + edgeWidth * 2.0, burnDist));
+    color = mix(color, vec3(0.15, 0.08, 0.02), charBand * 0.6 * step(0.01, burnProgress));
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -636,7 +645,7 @@ const topSurfaceBurnShader = `
     // CircleGeometry is in XY plane, rotated to XZ in world
     float dist = length(vPosition.xy) / 2.6;
     float n = noise(vPosition.xy * 3.0 + time * 0.5) * 0.15;
-    float burnEdge = burnProgress * 1.1;
+    float burnEdge = burnProgress * 1.2;
     float burnDist = dist + n;
     float edgeWidth = 0.08;
 
@@ -652,9 +661,10 @@ const topSurfaceBurnShader = `
                       (1.0 - smoothstep(burnEdge, burnEdge + edgeWidth, burnDist));
     color = mix(color, emberColor, emberGlow * 2.0);
 
-    // Char darkening near edge
-    float charr = smoothstep(burnEdge - edgeWidth * 2.0, burnEdge - edgeWidth, burnDist);
-    color = mix(color, vec3(0.15, 0.08, 0.02), charr * 0.5 * step(0.01, burnProgress));
+    // Char darkening near edge — only in a narrow band, not across entire surface
+    float charBand = smoothstep(burnEdge - edgeWidth * 3.0, burnEdge - edgeWidth, burnDist) *
+                     (1.0 - smoothstep(burnEdge - edgeWidth, burnEdge + edgeWidth * 2.0, burnDist));
+    color = mix(color, vec3(0.15, 0.08, 0.02), charBand * 0.5 * step(0.01, burnProgress));
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -669,6 +679,120 @@ const topSurface = new THREE.Mesh(topSurfaceGeo, topSurfaceMat);
 topSurface.position.y = 3.36;
 topSurface.rotation.x = -Math.PI / 2;
 cakeGroup.add(topSurface);
+
+// ── Logo Burn Shader (burns logos piece-by-piece matching the cake burn) ──
+const logoBurnVertexShader = `
+  varying vec2 vUv;
+  varying vec3 vWorldPos;
+  void main() {
+    vUv = uv;
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vWorldPos = worldPos.xyz;
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  }
+`;
+
+// Top logo burn shader — logos lie flat on top, burn radially from center using world XZ
+const topLogoBurnFragmentShader = `
+  uniform float burnProgress;
+  uniform float time;
+  uniform sampler2D logoMap;
+  varying vec2 vUv;
+  varying vec3 vWorldPos;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i); float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0)); float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
+  void main() {
+    vec4 texColor = texture2D(logoMap, vUv);
+    if (texColor.a < 0.01) discard;
+
+    float dist = length(vWorldPos.xz) / 2.8;
+    float n = noise(vWorldPos.xz * 3.0 + time * 0.5) * 0.15;
+    float burnEdge = burnProgress * 1.2;
+    float burnDist = dist + n;
+    float edgeWidth = 0.08;
+
+    // Discard burnt area
+    if (burnDist < burnEdge - edgeWidth && burnProgress > 0.01) {
+      discard;
+    }
+
+    vec3 color = texColor.rgb;
+
+    // Ember glow at burn edge
+    float emberGlow = smoothstep(burnEdge - edgeWidth, burnEdge, burnDist) *
+                      (1.0 - smoothstep(burnEdge, burnEdge + edgeWidth, burnDist));
+    vec3 emberColor = mix(vec3(1.0, 0.3, 0.0), vec3(1.0, 0.8, 0.0), noise(vWorldPos.xz * 8.0 + time));
+    color = mix(color, emberColor, emberGlow * 2.0);
+
+    // Char darkening in narrow band
+    float charBand = smoothstep(burnEdge - edgeWidth * 3.0, burnEdge - edgeWidth, burnDist) *
+                     (1.0 - smoothstep(burnEdge - edgeWidth, burnEdge + edgeWidth * 2.0, burnDist));
+    color = mix(color, vec3(0.15, 0.08, 0.02), charBand * 0.5 * step(0.01, burnProgress));
+
+    gl_FragColor = vec4(color, texColor.a);
+  }
+`;
+
+// Wall logo burn shader — logos on cake side, burn based on distance from center axis
+const wallLogoBurnFragmentShader = `
+  uniform float burnProgress;
+  uniform float time;
+  uniform sampler2D logoMap;
+  varying vec2 vUv;
+  varying vec3 vWorldPos;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i); float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0)); float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
+  void main() {
+    vec4 texColor = texture2D(logoMap, vUv);
+    if (texColor.a < 0.01) discard;
+
+    // Wall logos: burn top-down matching the cake wall burn
+    // World Y: top of cake wall ~3.35, bottom ~1.95 → normalize to 0..1
+    float normalizedY = clamp((vWorldPos.y - 1.95) / 1.4, 0.0, 1.0);
+    // Top of wall burns first (0.82), bottom burns last (1.12)
+    float effectiveDist = 0.82 + (1.0 - normalizedY) * 0.3;
+    float n = noise(vWorldPos.xz * 3.0 + time * 0.5) * 0.15;
+    float burnEdge = burnProgress * 1.2;
+    float burnDist = effectiveDist + n;
+    float edgeWidth = 0.08;
+
+    // Discard burnt area
+    if (burnDist < burnEdge - edgeWidth && burnProgress > 0.01) {
+      discard;
+    }
+
+    vec3 color = texColor.rgb;
+
+    // Ember glow at burn edge
+    float emberGlow = smoothstep(burnEdge - edgeWidth, burnEdge, burnDist) *
+                      (1.0 - smoothstep(burnEdge, burnEdge + edgeWidth, burnDist));
+    vec3 emberColor = mix(vec3(1.0, 0.3, 0.0), vec3(1.0, 0.8, 0.0), noise(vWorldPos.xz * 8.0 + time));
+    color = mix(color, emberColor, emberGlow * 2.0);
+
+    // Char darkening in narrow band
+    float charBand = smoothstep(burnEdge - edgeWidth * 3.0, burnEdge - edgeWidth, burnDist) *
+                     (1.0 - smoothstep(burnEdge - edgeWidth, burnEdge + edgeWidth * 2.0, burnDist));
+    color = mix(color, vec3(0.15, 0.08, 0.02), charBand * 0.5 * step(0.01, burnProgress));
+
+    gl_FragColor = vec4(color, texColor.a);
+  }
+`;
 
 // ── University Logos ──
 const textureLoader = new THREE.TextureLoader();
@@ -744,10 +868,16 @@ schools.forEach((school, i) => {
 
   const fallbackTexture = new THREE.CanvasTexture(canvas);
 
-  const logoMat = new THREE.MeshStandardMaterial({
-    map: fallbackTexture,
+  // Top logo — uses burn shader for piece-by-piece burning
+  const topLogoMat = new THREE.ShaderMaterial({
+    uniforms: {
+      burnProgress: burnUniforms.burnProgress,
+      time: burnUniforms.time,
+      logoMap: { value: fallbackTexture },
+    },
+    vertexShader: logoBurnVertexShader,
+    fragmentShader: topLogoBurnFragmentShader,
     transparent: true,
-    roughness: 0.5,
     side: THREE.DoubleSide,
   });
 
@@ -756,15 +886,14 @@ schools.forEach((school, i) => {
     school.file,
     (texture) => {
       texture.colorSpace = THREE.SRGBColorSpace;
-      logoMat.map = texture;
-      logoMat.needsUpdate = true;
+      topLogoMat.uniforms.logoMap.value = texture;
     },
     undefined,
     () => { /* fallback already set */ }
   );
 
   // Logo on top surface
-  const logoMesh = new THREE.Mesh(logoGeo, logoMat);
+  const logoMesh = new THREE.Mesh(logoGeo, topLogoMat);
   logoMesh.position.set(x, 3.38, z);
   logoMesh.rotation.x = -Math.PI / 2;
   logoGroup.add(logoMesh);
@@ -776,14 +905,19 @@ schools.forEach((school, i) => {
   const wallHeight = wallBaseHeight * s;
   const wallWidth = wallHeight * wallAr;
   const wallLogoGeo = new THREE.PlaneGeometry(wallWidth, wallHeight);
-  const wallLogoMat = new THREE.MeshStandardMaterial({
+
+  // Wall logo — uses burn shader for piece-by-piece burning
+  const wallLogoMat = new THREE.ShaderMaterial({
+    uniforms: {
+      burnProgress: burnUniforms.burnProgress,
+      time: burnUniforms.time,
+      logoMap: { value: fallbackTexture },
+    },
+    vertexShader: logoBurnVertexShader,
+    fragmentShader: wallLogoBurnFragmentShader,
     transparent: true,
-    roughness: 0.5,
     side: THREE.DoubleSide,
   });
-
-  // Use the same fallback texture
-  wallLogoMat.map = logoMat.map;
 
   const wallLogoMesh = new THREE.Mesh(wallLogoGeo, wallLogoMat);
   const wallRadius = 2.75; // slightly proud of the surface
@@ -799,13 +933,45 @@ schools.forEach((school, i) => {
     school.file,
     (texture) => {
       texture.colorSpace = THREE.SRGBColorSpace;
-      wallLogoMat.map = texture;
-      wallLogoMat.needsUpdate = true;
+      wallLogoMat.uniforms.logoMap.value = texture;
     },
     undefined,
     () => {}
   );
 });
+
+// ── Reveal blur shader (progressive blur-to-focus during burn) ──
+const revealBlurVertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const revealBlurFragmentShader = `
+  uniform sampler2D map;
+  uniform float blurAmount;
+  uniform float opacity;
+  varying vec2 vUv;
+
+  void main() {
+    // 9-tap gaussian blur
+    float b = blurAmount * 0.012; // pixel spread
+    vec4 color = vec4(0.0);
+    color += texture2D(map, vUv + vec2(-b, -b)) * 0.0625;
+    color += texture2D(map, vUv + vec2( 0.0, -b)) * 0.125;
+    color += texture2D(map, vUv + vec2( b, -b)) * 0.0625;
+    color += texture2D(map, vUv + vec2(-b,  0.0)) * 0.125;
+    color += texture2D(map, vUv)                   * 0.25;
+    color += texture2D(map, vUv + vec2( b,  0.0)) * 0.125;
+    color += texture2D(map, vUv + vec2(-b,  b)) * 0.0625;
+    color += texture2D(map, vUv + vec2( 0.0,  b)) * 0.125;
+    color += texture2D(map, vUv + vec2( b,  b)) * 0.0625;
+
+    gl_FragColor = vec4(color.rgb, color.a * opacity);
+  }
+`;
 
 // ── Reveal layer: logos + labels + circular text ──
 const revealLogoMeshes = [];
@@ -866,13 +1032,17 @@ rCtx.fillText('Maryland', 344, 630);
 
 const revealSurfaceTexture = new THREE.CanvasTexture(revealCanvas);
 
-// Reveal surface plane with text
+// Reveal surface plane with text — blur shader for progressive reveal
 const revealTextGeo = new THREE.PlaneGeometry(5.2, 5.2);
-const revealTextMat = new THREE.MeshStandardMaterial({
-  map: revealSurfaceTexture,
+const revealTextMat = new THREE.ShaderMaterial({
+  uniforms: {
+    map: { value: revealSurfaceTexture },
+    blurAmount: { value: 1.0 },
+    opacity: { value: 0.0 },
+  },
+  vertexShader: revealBlurVertexShader,
+  fragmentShader: revealBlurFragmentShader,
   transparent: true,
-  opacity: 0,
-  roughness: 0.4,
   side: THREE.DoubleSide,
 });
 const revealText = new THREE.Mesh(revealTextGeo, revealTextMat);
@@ -881,18 +1051,22 @@ revealText.rotation.x = -Math.PI / 2;
 cakeGroup.add(revealText);
 revealLogoMeshes.push(revealText);
 
-// Michigan logo
+// Michigan logo — blur shader
 const michiganRevealGeo = new THREE.PlaneGeometry(1.5, 1.5);
-const michiganRevealMat = new THREE.MeshStandardMaterial({
+const michiganRevealMat = new THREE.ShaderMaterial({
+  uniforms: {
+    map: { value: null },
+    blurAmount: { value: 1.0 },
+    opacity: { value: 0.0 },
+  },
+  vertexShader: revealBlurVertexShader,
+  fragmentShader: revealBlurFragmentShader,
   transparent: true,
-  opacity: 0,
-  roughness: 0.4,
   side: THREE.DoubleSide,
 });
 textureLoader.load('logos/michigan.png', (tex) => {
   tex.colorSpace = THREE.SRGBColorSpace;
-  michiganRevealMat.map = tex;
-  michiganRevealMat.needsUpdate = true;
+  michiganRevealMat.uniforms.map.value = tex;
 });
 const michiganReveal = new THREE.Mesh(michiganRevealGeo, michiganRevealMat);
 michiganReveal.position.set(0.85, 2.07, -0.15);
@@ -900,18 +1074,22 @@ michiganReveal.rotation.x = -Math.PI / 2;
 cakeGroup.add(michiganReveal);
 revealLogoMeshes.push(michiganReveal);
 
-// Maryland logo
+// Maryland logo — blur shader
 const marylandRevealGeo = new THREE.PlaneGeometry(1.5, 1.5);
-const marylandRevealMat = new THREE.MeshStandardMaterial({
+const marylandRevealMat = new THREE.ShaderMaterial({
+  uniforms: {
+    map: { value: null },
+    blurAmount: { value: 1.0 },
+    opacity: { value: 0.0 },
+  },
+  vertexShader: revealBlurVertexShader,
+  fragmentShader: revealBlurFragmentShader,
   transparent: true,
-  opacity: 0,
-  roughness: 0.4,
   side: THREE.DoubleSide,
 });
 textureLoader.load('logos/maryland.png', (tex) => {
   tex.colorSpace = THREE.SRGBColorSpace;
-  marylandRevealMat.map = tex;
-  marylandRevealMat.needsUpdate = true;
+  marylandRevealMat.uniforms.map.value = tex;
 });
 const marylandReveal = new THREE.Mesh(marylandRevealGeo, marylandRevealMat);
 marylandReveal.position.set(-0.85, 2.07, -0.15);
@@ -1037,7 +1215,10 @@ window.resetCake = function() {
   clearConfetti3D();
   flameGroup.visible = false;
   flameLight.intensity = 0;
-  revealLogoMeshes.forEach(m => { m.material.opacity = 0; });
+  revealLogoMeshes.forEach(m => {
+    m.material.uniforms.opacity.value = 0;
+    m.material.uniforms.blurAmount.value = 1.0;
+  });
 
   // Reset top cake and surface
   topCake.visible = true;
@@ -1054,10 +1235,8 @@ window.resetCake = function() {
     dot.material.transparent = false;
   });
 
-  // Reset logos
+  // Reset logos (burn shader resets via burnProgress uniform, just restore visibility)
   logoMeshes.forEach(m => {
-    m.material.opacity = 1;
-    m.material.transparent = false;
     m.visible = true;
   });
 
@@ -1169,8 +1348,8 @@ const confettiGroup = new THREE.Group();
 scene.add(confettiGroup);
 
 function launchConfetti() {
-  // Spawn 250 small confetti pieces falling from above
-  for (let i = 0; i < 250; i++) {
+  // Spawn 400 small confetti pieces falling across the entire scene
+  for (let i = 0; i < 400; i++) {
     // Random shape: rectangle or square confetti
     const w = 0.06 + Math.random() * 0.1;
     const h = 0.04 + Math.random() * 0.08;
@@ -1183,11 +1362,11 @@ function launchConfetti() {
     });
     const mesh = new THREE.Mesh(geo, mat);
 
-    // Start position: spread above the cake, random XZ within a wide area
-    const spread = 5;
+    // Start position: spread across the entire scene
+    const spread = 16;
     mesh.position.set(
       (Math.random() - 0.5) * spread,
-      8 + Math.random() * 6, // start 8-14 units above
+      8 + Math.random() * 8, // start 8-16 units above
       (Math.random() - 0.5) * spread
     );
 
@@ -1202,15 +1381,15 @@ function launchConfetti() {
 
     // Landing surface: determine where this piece lands
     // Cake top surface is at y ≈ 2.06, radius ≈ 2.6
-    // Tray/platter is at y ≈ 0, radius ≈ 4.5
+    // Platter surface is at y ≈ 0.15, radius ≈ 6
     const xz = Math.sqrt(mesh.position.x * mesh.position.x + mesh.position.z * mesh.position.z);
     let landY;
     if (xz < 2.5) {
       landY = 2.1 + Math.random() * 0.05; // land on cake top
-    } else if (xz < 4.2) {
-      landY = 0.05 + Math.random() * 0.05; // land on tray
+    } else if (xz < 5.8) {
+      landY = 0.15 + Math.random() * 0.05; // land on platter
     } else {
-      landY = -0.5; // land on ground
+      landY = 0.1 + Math.random() * 0.05; // land on platter edge
     }
 
     confetti3D.push({
@@ -1312,28 +1491,11 @@ function animate() {
     burnUniforms.burnProgress.value = t;
     burnUniforms.time.value = elapsed;
 
-    // Burn logos based on position — each logo stays visible until burn edge reaches it
-    const burnEdge = t * 1.1;
-    logoMeshes.forEach((mesh) => {
-      const pos = mesh.position;
-      // Top logos (y > 3): use xz distance from center, normalized by cake radius
-      // Wall logos (y < 3): burn when the edge reaches the outer wall
-      let logoDist;
-      if (pos.y > 3) {
-        logoDist = Math.sqrt(pos.x * pos.x + pos.z * pos.z) / 2.8;
-      } else {
-        // Wall logos: burn when the edge reaches the outer wall (~0.95 normalized)
-        logoDist = 0.95;
-      }
-      const fadeZone = 0.08; // how quickly logo fades once burn edge passes it
-      const logoFade = 1.0 - Math.max(0, Math.min(1, (burnEdge - logoDist) / fadeZone));
-      mesh.material.opacity = logoFade;
-      mesh.material.transparent = true;
-      if (logoFade <= 0) mesh.visible = false;
-    });
+    // Logos burn via their own shaders (synced with burnUniforms), no JS fade needed
+    const burnEdge = t * 1.2;
 
-    // Top surface burns via its own shader (synced with burnUniforms), just hide when done
-    if (t > 0.9) {
+    // Top surface burns via its own shader (synced with burnUniforms)
+    if (t > 0.85) {
       topSurface.visible = false;
     }
 
@@ -1356,28 +1518,37 @@ function animate() {
       }
     });
 
-    // Hide top cake cylinder once burn is mostly done (so it doesn't block reveal)
-    if (t > 0.85) {
-      topCake.visible = false;
-    }
-
-    // Reveal Michigan + Maryland logos — only after top layer is mostly gone
-    if (t > 0.75) {
-      const revealOpacity = Math.min(1, (t - 0.75) * 4);
-      revealLogoMeshes.forEach(m => { m.material.opacity = revealOpacity; });
-
-      // Launch confetti once logos are fully revealed
-      if (revealOpacity >= 1 && !confettiTriggered) {
-        confettiTriggered = true;
-        launchConfetti();
-      }
-    }
-
-    // Hide candle as soon as top layer is gone
-    if (t > 0.85) {
+    // Top cake walls burn gradually via shader — only hide candle/flame when burn reaches rim
+    if (t > 0.7) {
       candleGroup.visible = false;
       flameGroup.visible = false;
       flameLight.intensity = 0;
+    }
+    // Hide remaining non-shader elements once walls are fully burned through
+    if (t > 0.95) {
+      topCake.visible = false;  // shader has discarded all fragments by now
+      topSurface.visible = false;
+      topRim.visible = false;
+      topDots.forEach(dot => { dot.visible = false; });
+      logoMeshes.forEach(mesh => { mesh.visible = false; });
+    }
+
+    // Progressive blur-to-focus reveal — starts blurry early, sharpens as burn progresses
+    if (t > 0.25) {
+      // Map t from [0.25, 0.85] → blur [1.0, 0.0] and opacity [0.3, 1.0]
+      const revealT = Math.min(1.0, (t - 0.25) / 0.6);
+      const blur = 1.0 - revealT;
+      const opacity = 0.3 + revealT * 0.7;
+      revealLogoMeshes.forEach(m => {
+        m.material.uniforms.blurAmount.value = blur;
+        m.material.uniforms.opacity.value = opacity;
+      });
+
+      // Launch confetti once fully sharp
+      if (revealT >= 0.95 && !confettiTriggered) {
+        confettiTriggered = true;
+        launchConfetti();
+      }
     }
   }
 
