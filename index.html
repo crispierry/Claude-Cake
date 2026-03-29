@@ -212,6 +212,7 @@
     <div id="password-error">Incorrect password</div>
   </div>
 </div>
+<button id="audio-toggle" onclick="toggleFightSong()" style="display:none; position:fixed; bottom:24px; right:24px; z-index:10000; width:56px; height:56px; border-radius:50%; border:none; background:rgba(0,39,76,0.85); color:#FFCB05; font-size:24px; cursor:pointer; box-shadow:0 2px 12px rgba(0,0,0,0.4); backdrop-filter:blur(6px); transition:opacity 0.3s;">&#9208;</button>
 <div id="congrats-overlay">
   <div style="display:flex; align-items:center; justify-content:center; gap:clamp(12px, 2vw, 24px); max-width:100vw; padding:0 10px; box-sizing:border-box;">
     <img src="logos/michigan.png" id="congrats-logo-left" style="height:172px; flex-shrink:0; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
@@ -1374,6 +1375,104 @@ renderer.domElement.addEventListener('pointerup', (event) => {
 
 window.startBurn = startBurn;
 window.lightTheFuse = () => startWickBurn();
+
+// ── Procedural fire/crackle audio ──
+let fireAudioCtx = null;
+let fireGain = null;
+let fireNoiseSource = null;
+let crackleInterval = null;
+let fireMasterVolume = 0;
+
+function startFireAudio() {
+  try {
+    fireAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Quiet low rumble base (very subtle, not hissy)
+    const bufferSize = fireAudioCtx.sampleRate * 2;
+    const noiseBuffer = fireAudioCtx.createBuffer(1, bufferSize, fireAudioCtx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+    fireNoiseSource = fireAudioCtx.createBufferSource();
+    fireNoiseSource.buffer = noiseBuffer;
+    fireNoiseSource.loop = true;
+
+    // Lowpass to make it a warm rumble, not a hiss
+    const lowpass = fireAudioCtx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 300;
+    lowpass.Q.value = 1.0;
+
+    fireGain = fireAudioCtx.createGain();
+    fireGain.gain.value = 0;
+
+    fireNoiseSource.connect(lowpass);
+    lowpass.connect(fireGain);
+    fireGain.connect(fireAudioCtx.destination);
+    fireNoiseSource.start();
+
+    // Crackle pops - the main fire sound
+    crackleInterval = setInterval(() => {
+      if (!fireAudioCtx || fireMasterVolume < 0.01) return;
+      // More frequent crackles (70% chance per tick)
+      if (Math.random() > 0.7) return;
+      const numPops = Math.floor(Math.random() * 4) + 1;
+      for (let i = 0; i < numPops; i++) {
+        setTimeout(() => {
+          if (!fireAudioCtx) return;
+          // Short noise burst for crackle (not oscillator - noise sounds more natural)
+          const crackleLen = 0.01 + Math.random() * 0.03;
+          const crackleFrames = Math.floor(fireAudioCtx.sampleRate * crackleLen);
+          const crackBuf = fireAudioCtx.createBuffer(1, crackleFrames, fireAudioCtx.sampleRate);
+          const crackData = crackBuf.getChannelData(0);
+          // Shaped noise burst - sharp attack, fast decay
+          for (let j = 0; j < crackleFrames; j++) {
+            const env = Math.exp(-j / (crackleFrames * 0.15));
+            crackData[j] = (Math.random() * 2 - 1) * env;
+          }
+          const crackSrc = fireAudioCtx.createBufferSource();
+          crackSrc.buffer = crackBuf;
+
+          // Bandpass to give it a woody snap character
+          const bp = fireAudioCtx.createBiquadFilter();
+          bp.type = 'bandpass';
+          bp.frequency.value = 2000 + Math.random() * 4000;
+          bp.Q.value = 1 + Math.random() * 3;
+
+          const crackGain = fireAudioCtx.createGain();
+          crackGain.gain.value = fireMasterVolume * (0.4 + Math.random() * 0.6);
+
+          crackSrc.connect(bp);
+          bp.connect(crackGain);
+          crackGain.connect(fireAudioCtx.destination);
+          crackSrc.start();
+        }, Math.random() * 60);
+      }
+    }, 50);
+  } catch(e) { /* no audio support */ }
+}
+
+function setFireVolume(v) {
+  fireMasterVolume = Math.max(0, Math.min(1, v));
+  if (fireGain && fireAudioCtx) {
+    // Base rumble is quiet relative to crackles
+    fireGain.gain.setTargetAtTime(fireMasterVolume * 0.15, fireAudioCtx.currentTime, 0.05);
+  }
+}
+
+function stopFireAudio() {
+  fireMasterVolume = 0;
+  if (crackleInterval) { clearInterval(crackleInterval); crackleInterval = null; }
+  if (fireGain && fireAudioCtx) {
+    fireGain.gain.setTargetAtTime(0, fireAudioCtx.currentTime, 0.1);
+  }
+  setTimeout(() => {
+    if (fireNoiseSource) { try { fireNoiseSource.stop(); } catch(e) {} fireNoiseSource = null; }
+    if (fireAudioCtx) { fireAudioCtx.close().catch(() => {}); fireAudioCtx = null; }
+    fireGain = null;
+  }, 500);
+}
+
 function startBurn() {
   isBurning = true;
   burnStartTime = performance.now() / 1000;
@@ -1381,6 +1480,9 @@ function startBurn() {
   // Show flame
   flameGroup.visible = true;
   flameLight.intensity = 2.0;
+
+  // Start fire crackling sound
+  startFireAudio();
 
   // Hide instruction text and light button
   document.getElementById('instructions').style.opacity = '0';
@@ -1631,10 +1733,24 @@ let phase2AudioContext = null;
 let fightSong = null;
 let fightSongLoaded = false;
 try {
-  fightSong = new Audio('https://archive.org/download/stmacma-Stoughton_High_Symphonic_Band_-_The_Victors_-_University_of_Michigan_Fight_Song/Stoughton_High_Symphonic_Band_-_The_Victors_-_University_of_Michigan_Fight_Song.mp3');
+  fightSong = new Audio('https://archive.org/download/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors.mp3');
   fightSong.preload = 'auto';
   fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
+  // Also check readyState in case canplaythrough already fired
+  if (fightSong.readyState >= 4) fightSongLoaded = true;
 } catch(e) { /* no audio, that's fine */ }
+
+window.toggleFightSong = function() {
+  if (!fightSong) return;
+  const btn = document.getElementById('audio-toggle');
+  if (fightSong.paused) {
+    fightSong.play().catch(() => {});
+    btn.innerHTML = '&#9208;'; // pause icon
+  } else {
+    fightSong.pause();
+    btn.innerHTML = '&#9654;'; // play icon
+  }
+};
 
 // ── TNT Block ──
 const tntGroup = new THREE.Group();
@@ -2280,10 +2396,13 @@ function startWickBurn() {
   setTimeout(() => { document.getElementById('fuse-instructions').style.display = 'none'; }, 500);
 
   // Play fight song on user gesture (satisfies mobile autoplay)
-  if (fightSong && fightSongLoaded) {
+  if (fightSong) {
+    fightSongLoaded = true; // user gesture context, safe to play regardless
     fightSong.volume = 0;
     fightSong.currentTime = 0;
     fightSong.play().catch(() => {});
+    document.getElementById('audio-toggle').style.display = 'block';
+    document.getElementById('audio-toggle').innerHTML = '&#9208;'; // pause icon
   }
 }
 
@@ -2301,17 +2420,15 @@ function hidePhase1Elements() {
   wickTube.visible = false;
   trayDecoGroup.visible = false;
 
-  // Re-launch settled Phase 1 confetti (blow it up)
+  // Re-launch ALL Phase 1 confetti (blow it up and let it fall off screen)
   for (const p of confetti3D) {
-    if (p.landed) {
-      p.landed = false;
-      p.vy = 3 + Math.random() * 5;
-      p.vx = (Math.random() - 0.5) * 3;
-      p.vz = (Math.random() - 0.5) * 3;
-      p.started = true;
-      p.mesh.visible = true;
-      p.landY = -5; // let them fall off screen
-    }
+    p.landed = false;
+    p.vy = 3 + Math.random() * 5;
+    p.vx = (Math.random() - 0.5) * 3;
+    p.vz = (Math.random() - 0.5) * 3;
+    p.started = true;
+    p.mesh.visible = true;
+    p.landY = -5; // let them fall off screen
   }
 }
 
@@ -2591,6 +2708,7 @@ function resetPhase2() {
     fightSong.pause();
     fightSong.currentTime = 0;
   }
+  document.getElementById('audio-toggle').style.display = 'none';
 }
 
 // ===== END PHASE 2 =====
@@ -2655,6 +2773,18 @@ function animate() {
         if (dotFade <= 0) dot.visible = false;
       }
     });
+
+    // Fire audio volume: ramp up, intensify during cake burn, fade at end
+    if (t < 0.1) {
+      setFireVolume(t * 3); // ramp in over first 10%
+    } else if (t < 0.7) {
+      setFireVolume(0.3 + t * 0.4); // candle + cake burning
+    } else if (t < 0.95) {
+      setFireVolume(0.6 * (1 - (t - 0.7) / 0.25)); // fade as cake disintegrates
+    } else {
+      setFireVolume(0);
+      stopFireAudio();
+    }
 
     // Candle burns down progressively — shrinks and melts as burn progresses
     if (t < 0.7) {
