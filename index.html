@@ -141,7 +141,7 @@ const cakeSideMaterial = new THREE.MeshStandardMaterial({
 
 // ── Platform / Table ──
 const tableGeo = new THREE.CylinderGeometry(6, 6, 0.2, 64);
-const tableMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.7 });
+const tableMat = new THREE.MeshStandardMaterial({ color: 0xc9a84c, roughness: 0.3, metalness: 0.6 });
 const table = new THREE.Mesh(tableGeo, tableMat);
 table.position.y = -0.1;
 table.receiveShadow = true;
@@ -153,6 +153,140 @@ const plateMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.
 const plate = new THREE.Mesh(plateGeo, plateMat);
 plate.position.y = 0.08;
 scene.add(plate);
+
+// ── Tray decorations: Graduation caps + Diploma scrolls ──
+const trayDecoGroup = new THREE.Group();
+scene.add(trayDecoGroup);
+
+// Materials for grad caps
+const capBlackMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 });
+const capBoardMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+const tasselGoldMat = new THREE.MeshStandardMaterial({ color: 0xd4a843, roughness: 0.3, metalness: 0.6 });
+
+// Build a graduation cap (scaled up ~2x)
+function createGradCap() {
+  const capGroup = new THREE.Group();
+
+  // Cap body (short cylinder)
+  const bodyGeo = new THREE.CylinderGeometry(0.3, 0.35, 0.2, 16);
+  const body = new THREE.Mesh(bodyGeo, capBlackMat);
+  body.position.y = 0.1;
+  capGroup.add(body);
+
+  // Mortarboard (flat square on top)
+  const boardGeo = new THREE.BoxGeometry(0.75, 0.04, 0.75);
+  const board = new THREE.Mesh(boardGeo, capBoardMat);
+  board.position.y = 0.22;
+  capGroup.add(board);
+
+  // Button on top center
+  const buttonGeo = new THREE.SphereGeometry(0.055, 8, 8);
+  const button = new THREE.Mesh(buttonGeo, tasselGoldMat);
+  button.position.y = 0.26;
+  capGroup.add(button);
+
+  // Tassel string (thin cylinder hanging from button)
+  const tasselStringGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.3, 6);
+  const tasselString = new THREE.Mesh(tasselStringGeo, tasselGoldMat);
+  tasselString.position.set(0.2, 0.16, 0.2);
+  tasselString.rotation.z = 0.6;
+  capGroup.add(tasselString);
+
+  // Tassel end (small cylinder)
+  const tasselEndGeo = new THREE.CylinderGeometry(0.035, 0.025, 0.1, 6);
+  const tasselEnd = new THREE.Mesh(tasselEndGeo, tasselGoldMat);
+  tasselEnd.position.set(0.32, 0.05, 0.32);
+  capGroup.add(tasselEnd);
+
+  return capGroup;
+}
+
+// Place 10 graduation caps around the tray
+const capPositions = [
+  { angle: 0.2, radius: 4.6, tilt: 0.15, spin: 0.5 },
+  { angle: 0.9, radius: 5.3, tilt: -0.1, spin: 1.2 },
+  { angle: 1.4, radius: 4.4, tilt: 0.2, spin: 1.8 },
+  { angle: 2.1, radius: 5.1, tilt: -0.15, spin: 2.7 },
+  { angle: 2.7, radius: 4.8, tilt: 0.1, spin: 3.3 },
+  { angle: 3.4, radius: 5.4, tilt: -0.2, spin: 4.0 },
+  { angle: 4.0, radius: 4.5, tilt: 0.18, spin: 4.8 },
+  { angle: 4.7, radius: 5.2, tilt: -0.12, spin: 5.5 },
+  { angle: 5.3, radius: 4.7, tilt: 0.1, spin: 0.3 },
+  { angle: 5.9, radius: 5.0, tilt: -0.18, spin: 1.0 },
+];
+
+capPositions.forEach(({ angle, radius, tilt, spin }) => {
+  const cap = createGradCap();
+  cap.position.set(
+    Math.cos(angle) * radius,
+    0.02,
+    Math.sin(angle) * radius
+  );
+  cap.rotation.x = tilt;
+  cap.rotation.y = spin;
+  cap.castShadow = true;
+  trayDecoGroup.add(cap);
+});
+
+// Materials for diploma scrolls
+const paperMat = new THREE.MeshStandardMaterial({ color: 0xfff8e7, roughness: 0.6 });
+const ribbonRedMat = new THREE.MeshStandardMaterial({ color: 0xcc2233, roughness: 0.4, metalness: 0.2 });
+
+// Build a diploma scroll (scaled up ~1.8x)
+function createDiplomaScroll() {
+  const scrollGroup = new THREE.Group();
+
+  // Rolled paper (cylinder)
+  const rollGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 12);
+  const roll = new THREE.Mesh(rollGeo, paperMat);
+  roll.rotation.z = Math.PI / 2;
+  roll.position.y = 0.1;
+  scrollGroup.add(roll);
+
+  // Ribbon band around middle
+  const ribbonGeo = new THREE.TorusGeometry(0.11, 0.025, 8, 16);
+  const ribbon = new THREE.Mesh(ribbonGeo, ribbonRedMat);
+  ribbon.position.y = 0.1;
+  ribbon.rotation.y = Math.PI / 2;
+  scrollGroup.add(ribbon);
+
+  // Small ribbon bow (two elongated spheres)
+  const bowGeo = new THREE.SphereGeometry(0.04, 6, 6);
+  bowGeo.scale(1.5, 0.8, 1);
+  const bow1 = new THREE.Mesh(bowGeo, ribbonRedMat);
+  bow1.position.set(0, 0.21, 0.02);
+  scrollGroup.add(bow1);
+  const bow2 = new THREE.Mesh(bowGeo.clone(), ribbonRedMat);
+  bow2.position.set(0, 0.21, -0.02);
+  bow2.rotation.y = Math.PI / 3;
+  scrollGroup.add(bow2);
+
+  return scrollGroup;
+}
+
+// Place 8 diploma scrolls around the tray
+const scrollPositions = [
+  { angle: 0.5, radius: 5.0, spin: 0.3 },
+  { angle: 1.1, radius: 4.5, spin: 1.1 },
+  { angle: 1.8, radius: 5.3, spin: 1.9 },
+  { angle: 2.4, radius: 4.7, spin: 2.6 },
+  { angle: 3.3, radius: 5.1, spin: 3.5 },
+  { angle: 4.1, radius: 4.6, spin: 4.3 },
+  { angle: 4.9, radius: 5.2, spin: 5.1 },
+  { angle: 5.6, radius: 4.8, spin: 5.8 },
+];
+
+scrollPositions.forEach(({ angle, radius, spin }) => {
+  const scroll = createDiplomaScroll();
+  scroll.position.set(
+    Math.cos(angle) * radius,
+    0.0,
+    Math.sin(angle) * radius
+  );
+  scroll.rotation.y = spin;
+  scroll.castShadow = true;
+  trayDecoGroup.add(scroll);
+});
 
 // ── Cake layers ──
 const cakeGroup = new THREE.Group();
@@ -287,19 +421,20 @@ const textureLoader = new THREE.TextureLoader();
 const logoGroup = new THREE.Group();
 cakeGroup.add(logoGroup);
 
+// aspect = image width / image height (from cropped logo files)
 const schools = [
-  { name: 'Michigan', file: 'logos/michigan.png' },
-  { name: 'Maryland', file: 'logos/maryland.png' },
-  { name: 'Penn State', file: 'logos/pennstate.png' },
-  { name: 'Rutgers', file: 'logos/rutgers.png' },
-  { name: 'UConn', file: 'logos/uconn.png' },
-  { name: 'Syracuse', file: 'logos/syracuse.png' },
-  { name: 'UMass', file: 'logos/umass.png' },
-  { name: 'Boston U', file: 'logos/boston.png' },
-  { name: 'LMU', file: 'logos/loyola.png' },
-  { name: 'Delaware', file: 'logos/delaware.png' },
-  { name: 'Vermont', file: 'logos/vermont.png' },
-  { name: 'Hawaii', file: 'logos/hawaii.png' },
+  { name: 'Michigan', file: 'logos/michigan.png', aspect: 1.0 },
+  { name: 'Maryland', file: 'logos/maryland.png', aspect: 0.91 },
+  { name: 'Penn State', file: 'logos/pennstate.png', aspect: 5.55 },
+  { name: 'Rutgers', file: 'logos/rutgers.png', aspect: 1.14 },
+  { name: 'UConn', file: 'logos/uconn.png', aspect: 4.63 },
+  { name: 'Syracuse', file: 'logos/syracuse.png', aspect: 0.74 },
+  { name: 'UMass', file: 'logos/umass.png', aspect: 1.22 },
+  { name: 'Boston U', file: 'logos/boston.png', aspect: 1.37 },
+  { name: 'LMU', file: 'logos/loyola.png', aspect: 1.71 },
+  { name: 'Delaware', file: 'logos/delaware.png', aspect: 3.69 },
+  { name: 'Vermont', file: 'logos/vermont.png', aspect: 1.02 },
+  { name: 'Hawaii', file: 'logos/hawaii.png', aspect: 1.32 },
 ];
 
 // School colors for fallback
@@ -317,7 +452,11 @@ schools.forEach((school, i) => {
   const x = Math.cos(angle) * radius;
   const z = Math.sin(angle) * radius;
 
-  const logoGeo = new THREE.PlaneGeometry(0.7, 0.7);
+  // Size logos proportionally: same height, width based on aspect ratio
+  const topHeight = 0.6;
+  const ar = Math.min(school.aspect, 2.5); // cap width for very wide logos
+  const topWidth = topHeight * ar;
+  const logoGeo = new THREE.PlaneGeometry(topWidth, topHeight);
 
   // Create a canvas-based fallback texture
   const canvas = document.createElement('canvas');
@@ -366,11 +505,47 @@ schools.forEach((school, i) => {
     () => { /* fallback already set */ }
   );
 
+  // Logo on top surface
   const logoMesh = new THREE.Mesh(logoGeo, logoMat);
   logoMesh.position.set(x, 3.38, z);
   logoMesh.rotation.x = -Math.PI / 2;
   logoGroup.add(logoMesh);
   logoMeshes.push(logoMesh);
+
+  // Logo on the outside wall of the top cake layer
+  const wallHeight = 0.5;
+  const wallAr = Math.min(school.aspect, 2.5);
+  const wallWidth = wallHeight * wallAr;
+  const wallLogoGeo = new THREE.PlaneGeometry(wallWidth, wallHeight);
+  const wallLogoMat = new THREE.MeshStandardMaterial({
+    transparent: true,
+    roughness: 0.5,
+    side: THREE.DoubleSide,
+  });
+
+  // Use the same fallback texture
+  wallLogoMat.map = logoMat.map;
+
+  const wallLogoMesh = new THREE.Mesh(wallLogoGeo, wallLogoMat);
+  const wallRadius = 2.75; // slightly proud of the surface
+  const wallX = Math.cos(angle) * wallRadius;
+  const wallZ = Math.sin(angle) * wallRadius;
+  wallLogoMesh.position.set(wallX, 2.65, wallZ); // centered vertically on the cake wall
+  wallLogoMesh.rotation.y = -angle + Math.PI / 2; // face outward
+  logoGroup.add(wallLogoMesh);
+  logoMeshes.push(wallLogoMesh);
+
+  // Load actual texture into wall logo
+  textureLoader.load(
+    school.file,
+    (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      wallLogoMat.map = texture;
+      wallLogoMat.needsUpdate = true;
+    },
+    undefined,
+    () => {}
+  );
 });
 
 // ── Reveal layer: logos + labels + circular text ──
@@ -625,6 +800,70 @@ window.resetCake = function() {
   document.getElementById('light-btn').style.display = 'block';
   document.getElementById('instructions').style.opacity = '1';
 };
+
+// ── Gold ribbon band on bottom cake ──
+const ribbonGeo = new THREE.TorusGeometry(3.35, 0.08, 12, 64);
+const ribbonMat = new THREE.MeshStandardMaterial({
+  color: 0xd4a843,
+  roughness: 0.25,
+  metalness: 0.7,
+});
+const ribbon = new THREE.Mesh(ribbonGeo, ribbonMat);
+ribbon.position.y = 1.05;
+ribbon.rotation.x = Math.PI / 2;
+cakeGroup.add(ribbon);
+
+// Thin edge highlights above and below ribbon
+const ribbonEdgeGeo = new THREE.TorusGeometry(3.36, 0.025, 8, 64);
+const ribbonEdgeMat = new THREE.MeshStandardMaterial({
+  color: 0xf0d060,
+  roughness: 0.2,
+  metalness: 0.8,
+});
+const ribbonEdgeTop = new THREE.Mesh(ribbonEdgeGeo, ribbonEdgeMat);
+ribbonEdgeTop.position.y = 1.14;
+ribbonEdgeTop.rotation.x = Math.PI / 2;
+cakeGroup.add(ribbonEdgeTop);
+
+const ribbonEdgeBottom = new THREE.Mesh(ribbonEdgeGeo, ribbonEdgeMat);
+ribbonEdgeBottom.position.y = 0.96;
+ribbonEdgeBottom.rotation.x = Math.PI / 2;
+cakeGroup.add(ribbonEdgeBottom);
+
+// ── Confetti sprinkles on bottom cake side ──
+const confettiColors = [0xff4081, 0x7c4dff, 0x00bcd4, 0xffab00, 0x76ff03, 0xff6e40, 0x536dfe];
+for (let i = 0; i < 60; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  // Random y between bottom and top of cake, avoiding the ribbon band zone
+  let y;
+  if (Math.random() < 0.5) {
+    y = 0.25 + Math.random() * 0.6; // below ribbon
+  } else {
+    y = 1.25 + Math.random() * 0.6; // above ribbon
+  }
+  // Interpolate radius at this height (tapers from 3.4 at bottom to 3.2 at top)
+  const t = (y - 0.15) / 1.8;
+  const radius = 3.4 - t * 0.2 + 0.02; // slightly proud of surface
+
+  const confettiGeo = new THREE.CircleGeometry(0.04 + Math.random() * 0.03, 6);
+  const confettiMat = new THREE.MeshStandardMaterial({
+    color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+    roughness: 0.4,
+    metalness: 0.3,
+    side: THREE.DoubleSide,
+  });
+  const confetti = new THREE.Mesh(confettiGeo, confettiMat);
+  confetti.position.set(
+    Math.cos(angle) * radius,
+    y,
+    Math.sin(angle) * radius
+  );
+  // Face outward and add slight random tilt
+  confetti.rotation.y = -angle + Math.PI / 2;
+  confetti.rotation.x = (Math.random() - 0.5) * 0.5;
+  confetti.rotation.z = Math.random() * Math.PI; // random spin
+  cakeGroup.add(confetti);
+}
 
 // ── Frosting decorations (small dots around rim) ──
 for (let i = 0; i < 32; i++) {
