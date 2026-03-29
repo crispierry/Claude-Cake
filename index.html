@@ -65,6 +65,47 @@
     transition: background 0.3s;
   }
   #reset-btn:hover { background: rgba(255,255,255,0.3); }
+  #fuse-instructions {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    background: rgba(0,0,0,0.5);
+    padding: 12px 24px;
+    border-radius: 20px;
+    font-size: 16px;
+    font-weight: bold;
+    pointer-events: none;
+    text-align: center;
+    display: none;
+    transition: opacity 0.5s, transform 0.3s;
+  }
+  #white-flash {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: white;
+    pointer-events: none;
+    opacity: 0;
+    display: none;
+    z-index: 100;
+  }
+  #congrats-overlay {
+    position: fixed;
+    top: 8%;
+    left: 50%;
+    transform: translate(-50%, 0) scale(0);
+    font-size: 52px;
+    font-weight: bold;
+    font-family: 'Georgia', serif;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    text-align: center;
+    pointer-events: none;
+    z-index: 50;
+    display: none;
+    line-height: 1.3;
+    transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s;
+  }
 </style>
 </head>
 <body>
@@ -73,6 +114,27 @@
 <div id="instructions">Drag to rotate &bull; Scroll to zoom &bull; Click the candle to light it</div>
 <button id="light-btn" onclick="startBurn()">Light the Candle</button>
 <button id="reset-btn" onclick="resetCake()">Reset</button>
+<div id="fuse-instructions">Tap the fuse!</div>
+<div id="white-flash"></div>
+<div id="congrats-overlay"><span id="congrats-text"></span><br><span id="goblue-text" style="font-size:36px"></span></div>
+<script>
+// Alternating blue/yellow letters
+function colorLetters(text, elId) {
+  const el = document.getElementById(elId);
+  const blue = '#00274C', maize = '#FFCB05';
+  let html = '';
+  let colorIdx = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === ' ') { html += ' '; continue; }
+    const c = colorIdx % 2 === 0 ? maize : blue;
+    html += '<span style="color:' + c + '">' + text[i] + '</span>';
+    colorIdx++;
+  }
+  el.innerHTML = html;
+}
+colorLetters('CONGRATULATIONS!', 'congrats-text');
+colorLetters('GO BLUE!', 'goblue-text');
+</script>
 
 <script type="importmap">
 {
@@ -1016,7 +1078,7 @@ function drawCircularText(ctx, text, cx, cy, radius, startAngle) {
 // Draw circular text along top arc
 drawCircularText(rCtx, 'It is now down to two', 512, 512, 420, -Math.PI / 2);
 // Draw it again along bottom arc for full circle feel
-drawCircularText(rCtx, '~ ~ ~ ~ ~ ~ ~ ~ ~', 512, 512, 420, Math.PI / 2);
+drawCircularText(rCtx, 'March 28th, 2026', 512, 512, 420, Math.PI / 2);
 
 // Draw "Michigan" label — centered under Michigan logo at x=0.85 on 5.2-unit plane (right side)
 rCtx.fillStyle = '#00274C';
@@ -1203,46 +1265,15 @@ function startBurn() {
   document.getElementById('instructions').style.opacity = '0';
   document.getElementById('light-btn').style.display = 'none';
 
-  // Show reset button after burn completes
+  // Phase 2 triggers after Phase 1 confetti settles (~2s after burn completes)
   setTimeout(() => {
-    document.getElementById('reset-btn').style.display = 'block';
-  }, burnDuration * 1000 + 500);
+    enterPhase2();
+  }, burnDuration * 1000 + 2000);
 }
 
 window.resetCake = function() {
-  isBurning = false;
-  burnUniforms.burnProgress.value = 0;
-  clearConfetti3D();
-  flameGroup.visible = false;
-  flameLight.intensity = 0;
-  revealLogoMeshes.forEach(m => {
-    m.material.uniforms.opacity.value = 0;
-    m.material.uniforms.blurAmount.value = 1.0;
-  });
-
-  // Reset top cake and surface
-  topCake.visible = true;
-  topSurface.visible = true;
-  topRim.visible = true;
-  topRim.material.opacity = 1;
-  topRim.material.transparent = false;
-
-  // Reset candle and top frosting dots
-  candleGroup.visible = true;
-  topDots.forEach(dot => {
-    dot.visible = true;
-    dot.material.opacity = 1;
-    dot.material.transparent = false;
-  });
-
-  // Reset logos (burn shader resets via burnProgress uniform, just restore visibility)
-  logoMeshes.forEach(m => {
-    m.visible = true;
-  });
-
-  document.getElementById('reset-btn').style.display = 'none';
-  document.getElementById('light-btn').style.display = 'block';
-  document.getElementById('instructions').style.opacity = '1';
+  // Full page reload for clean restart (handles both Phase 1 and Phase 2)
+  location.reload();
 };
 
 // ── Gold ribbon band on bottom cake ──
@@ -1459,6 +1490,867 @@ function clearConfetti3D() {
   confettiTriggered = false;
 }
 
+// ===== PHASE 2: TNT WICK + EXPLOSION + MICHIGAN CELEBRATION =====
+
+// ── Phase 2 State ──
+let phase2State = 'idle'; // idle | wickReady | wickBurning | slowMo | exploding | blackout | revealing | celebrating
+let phase2StartTime = 0;
+let wickBurnStart = 0;
+const wickBurnDuration = 4.0;
+let slowMoStart = 0;
+let explosionStart = 0;
+let blackoutStart = 0;
+let revealStart = 0;
+let wickReadyTime = 0;
+let phase2AudioContext = null;
+
+// ── Audio: Preload fight song ──
+let fightSong = null;
+let fightSongLoaded = false;
+try {
+  fightSong = new Audio('victors.mp3');
+  fightSong.preload = 'auto';
+  fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
+} catch(e) { /* no audio, that's fine */ }
+
+// ── TNT Block ──
+const tntGroup = new THREE.Group();
+tntGroup.visible = false;
+scene.add(tntGroup);
+
+// TNT box
+const tntBoxGeo = new THREE.BoxGeometry(0.6, 0.5, 0.4);
+const tntMat = new THREE.MeshStandardMaterial({ color: 0xcc2222, roughness: 0.6 });
+const tntBox = new THREE.Mesh(tntBoxGeo, tntMat);
+tntBox.position.y = 0.25;
+tntBox.castShadow = true;
+tntGroup.add(tntBox);
+
+// TNT label (canvas texture)
+const tntCanvas = document.createElement('canvas');
+tntCanvas.width = 128; tntCanvas.height = 64;
+const tntCtx = tntCanvas.getContext('2d');
+tntCtx.fillStyle = '#cc2222';
+tntCtx.fillRect(0, 0, 128, 64);
+tntCtx.fillStyle = '#ffffff';
+tntCtx.font = 'bold 40px Georgia';
+tntCtx.textAlign = 'center';
+tntCtx.textBaseline = 'middle';
+tntCtx.fillText('TNT', 64, 32);
+const tntTexture = new THREE.CanvasTexture(tntCanvas);
+const tntLabelGeo = new THREE.PlaneGeometry(0.5, 0.25);
+const tntLabelMat = new THREE.MeshBasicMaterial({ map: tntTexture, transparent: true });
+const tntLabel = new THREE.Mesh(tntLabelGeo, tntLabelMat);
+tntLabel.position.set(0, 0.25, 0.21);
+tntGroup.add(tntLabel);
+// Back label
+const tntLabel2 = tntLabel.clone();
+tntLabel2.position.z = -0.21;
+tntLabel2.rotation.y = Math.PI;
+tntGroup.add(tntLabel2);
+
+// Position TNT at ~5 o'clock on platter (top-down view)
+const tntAngle = (5 / 12) * Math.PI * 2 - Math.PI / 2; // 5 o'clock
+const tntRadius = 4.0;
+tntGroup.position.set(Math.cos(tntAngle) * tntRadius, 0.0, Math.sin(tntAngle) * tntRadius);
+tntGroup.rotation.y = -tntAngle + Math.PI / 2;
+
+// ── Wick (TubeGeometry spiraling around cake) ──
+// Curve goes from tap-point (front/6 o'clock, t=0) → spirals around → TNT (5 o'clock, t=1)
+// Burn shader burns from t=0 toward t=1, so fire travels from tap toward TNT
+const wickCurvePoints = [];
+const wickSpirals = 1.8;
+const wickSegments = 80;
+const wickTapAngle = Math.PI / 2; // 6 o'clock = directly in front of default camera
+for (let i = 0; i <= wickSegments; i++) {
+  const t = i / wickSegments;
+  // Spiral from tap point toward TNT
+  const angle = wickTapAngle + t * wickSpirals * Math.PI * 2;
+  const r = 3.45 + Math.sin(t * Math.PI * 4) * 0.1;
+  const y = 0.8 - t * 0.5; // starts partway up cake, ends near platter at TNT
+  wickCurvePoints.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r));
+}
+// Add final point going into the TNT box
+wickCurvePoints.push(new THREE.Vector3(
+  Math.cos(tntAngle) * (tntRadius - 0.2), 0.25, Math.sin(tntAngle) * (tntRadius - 0.2)
+));
+const wickCurve = new THREE.CatmullRomCurve3(wickCurvePoints);
+const wickTubeGeo = new THREE.TubeGeometry(wickCurve, wickSegments, 0.035, 8, false);
+
+// Wick burn shader
+const wickBurnVertexShader = `
+  varying vec2 vUv;
+  varying vec3 vPos;
+  void main() {
+    vUv = uv;
+    vPos = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const wickBurnFragmentShader = `
+  uniform float uBurnProgress;
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vPos;
+
+  void main() {
+    float t = vUv.x; // along the tube length
+    float burnFront = uBurnProgress;
+    float edgeW = 0.02;
+
+    // Behind burn front: discard (consumed)
+    if (t < burnFront - edgeW && uBurnProgress > 0.0) {
+      discard;
+    }
+
+    // Base wick color (dark brown)
+    vec3 color = vec3(0.25, 0.15, 0.08);
+
+    // Ember glow at burn front
+    float ember = smoothstep(burnFront - edgeW, burnFront, t) *
+                  (1.0 - smoothstep(burnFront, burnFront + edgeW, t));
+    vec3 emberColor = mix(vec3(1.0, 0.5, 0.0), vec3(1.0, 1.0, 0.3), sin(uTime * 15.0) * 0.5 + 0.5);
+    color = mix(color, emberColor, ember * 3.0);
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+const wickBurnUniforms = {
+  uBurnProgress: { value: 0.0 },
+  uTime: { value: 0.0 },
+};
+const wickTubeMat = new THREE.ShaderMaterial({
+  uniforms: wickBurnUniforms,
+  vertexShader: wickBurnVertexShader,
+  fragmentShader: wickBurnFragmentShader,
+  side: THREE.DoubleSide,
+});
+const wickTube = new THREE.Mesh(wickTubeGeo, wickTubeMat);
+wickTube.visible = false;
+scene.add(wickTube);
+
+// Invisible hitbox at wick start (end of curve = tap point)
+const wickEndPt = wickCurve.getPointAt(0.0); // tap point is at start of curve (front of viewer)
+const wickHitGeo = new THREE.SphereGeometry(0.5, 8, 8);
+const wickHitMat = new THREE.MeshBasicMaterial({ visible: false });
+const wickHitbox = new THREE.Mesh(wickHitGeo, wickHitMat);
+wickHitbox.position.copy(wickEndPt);
+wickHitbox.visible = false;
+scene.add(wickHitbox);
+
+// Wick-end glow indicator
+const wickGlowGeo = new THREE.SphereGeometry(0.12, 12, 12);
+const wickGlowMat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.6 });
+const wickGlow = new THREE.Mesh(wickGlowGeo, wickGlowMat);
+wickGlow.position.copy(wickEndPt);
+wickGlow.visible = false;
+scene.add(wickGlow);
+
+// ── Spark particles for wick burn ──
+const sparkGroup = new THREE.Group();
+scene.add(sparkGroup);
+const sparks = [];
+
+function spawnSpark(pos) {
+  const geo = new THREE.SphereGeometry(0.03, 4, 4);
+  const mat = new THREE.MeshBasicMaterial({
+    color: Math.random() > 0.5 ? 0xff8800 : 0xffcc00,
+    transparent: true,
+    opacity: 1.0,
+  });
+  const spark = new THREE.Mesh(geo, mat);
+  spark.position.copy(pos);
+  spark.position.x += (Math.random() - 0.5) * 0.1;
+  spark.position.y += Math.random() * 0.1;
+  spark.position.z += (Math.random() - 0.5) * 0.1;
+  sparkGroup.add(spark);
+  sparks.push({
+    mesh: spark,
+    vy: 1.0 + Math.random() * 2.0,
+    vx: (Math.random() - 0.5) * 1.5,
+    vz: (Math.random() - 0.5) * 1.5,
+    life: 0.4 + Math.random() * 0.3,
+    age: 0,
+  });
+}
+
+function updateSparks(dt) {
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i];
+    s.age += dt;
+    if (s.age > s.life) {
+      sparkGroup.remove(s.mesh);
+      s.mesh.geometry.dispose();
+      s.mesh.material.dispose();
+      sparks.splice(i, 1);
+      continue;
+    }
+    s.vy -= 5.0 * dt;
+    s.mesh.position.x += s.vx * dt;
+    s.mesh.position.y += s.vy * dt;
+    s.mesh.position.z += s.vz * dt;
+    s.mesh.material.opacity = 1.0 - (s.age / s.life);
+  }
+}
+
+function clearSparks() {
+  for (const s of sparks) {
+    sparkGroup.remove(s.mesh);
+    s.mesh.geometry.dispose();
+    s.mesh.material.dispose();
+  }
+  sparks.length = 0;
+}
+
+// ── Explosion particles ──
+const explosionParticles = [];
+const explosionGroup = new THREE.Group();
+scene.add(explosionGroup);
+
+function triggerExplosion() {
+  const colors = [0xfff8f0, 0xffffff, 0xff6600, 0xff3300, 0xffcc00, 0xff9900];
+  for (let i = 0; i < 300; i++) {
+    const size = 0.05 + Math.random() * 0.1;
+    const geo = new THREE.BoxGeometry(size, size, size);
+    const mat = new THREE.MeshStandardMaterial({
+      color: colors[Math.floor(Math.random() * colors.length)],
+      roughness: 0.5,
+      transparent: true,
+      opacity: 1.0,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(
+      (Math.random() - 0.5) * 2,
+      1.0 + Math.random() * 1.5,
+      (Math.random() - 0.5) * 2
+    );
+    explosionGroup.add(mesh);
+    // Spherical burst velocity
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    const speed = 5 + Math.random() * 10;
+    explosionParticles.push({
+      mesh,
+      vx: Math.sin(phi) * Math.cos(theta) * speed,
+      vy: Math.cos(phi) * speed * 0.8 + 3, // bias upward
+      vz: Math.sin(phi) * Math.sin(theta) * speed,
+      rotX: (Math.random() - 0.5) * 8,
+      rotY: (Math.random() - 0.5) * 8,
+      age: 0,
+      life: 1.0 + Math.random() * 0.8,
+    });
+  }
+}
+
+function updateExplosionParticles(dt) {
+  for (let i = explosionParticles.length - 1; i >= 0; i--) {
+    const p = explosionParticles[i];
+    p.age += dt;
+    if (p.age > p.life) {
+      explosionGroup.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+      explosionParticles.splice(i, 1);
+      continue;
+    }
+    p.vy -= 9.8 * dt;
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.mesh.position.z += p.vz * dt;
+    p.mesh.rotation.x += p.rotX * dt;
+    p.mesh.rotation.y += p.rotY * dt;
+    p.mesh.material.opacity = Math.max(0, 1.0 - (p.age / p.life));
+  }
+}
+
+function clearExplosionParticles() {
+  for (const p of explosionParticles) {
+    explosionGroup.remove(p.mesh);
+    p.mesh.geometry.dispose();
+    p.mesh.material.dispose();
+  }
+  explosionParticles.length = 0;
+}
+
+// ── Screen shake state ──
+let shakeAmplitude = 0;
+let shakeDecay = 0;
+let shakeTime = 0;
+
+// ── Block-M Monument ──
+const monumentGroup = new THREE.Group();
+monumentGroup.visible = false;
+monumentGroup.position.y = -3; // starts below scene
+scene.add(monumentGroup);
+
+// Pedestal
+const pedestalGeo = new THREE.BoxGeometry(2.5, 0.4, 1.5);
+const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x00274C, roughness: 0.3, metalness: 0.4 });
+const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
+pedestal.position.y = 0.2;
+pedestal.castShadow = true;
+monumentGroup.add(pedestal);
+
+// Gold trim on pedestal
+const trimGeo = new THREE.BoxGeometry(2.6, 0.06, 1.6);
+const trimMat = new THREE.MeshStandardMaterial({ color: 0xFFCB05, roughness: 0.2, metalness: 0.7 });
+const trim1 = new THREE.Mesh(trimGeo, trimMat);
+trim1.position.y = 0.41;
+monumentGroup.add(trim1);
+const trim2 = trim1.clone();
+trim2.position.y = 0.0;
+monumentGroup.add(trim2);
+
+// Michigan logo on pedestal front (large)
+const mLogoGeo = new THREE.PlaneGeometry(2.0, 2.0);
+const mLogoMat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide });
+textureLoader.load('logos/michigan.png', (tex) => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  mLogoMat.map = tex;
+  mLogoMat.needsUpdate = true;
+});
+const mLogoMesh = new THREE.Mesh(mLogoGeo, mLogoMat);
+mLogoMesh.position.set(0, 1.5, 0.76);
+monumentGroup.add(mLogoMesh);
+// Back logo
+const mLogoBack = mLogoMesh.clone();
+mLogoBack.position.z = -0.76;
+mLogoBack.rotation.y = Math.PI;
+mLogoBack.material = mLogoMat;
+monumentGroup.add(mLogoBack);
+
+
+// ── Balloons ──
+const balloonGroup = new THREE.Group();
+scene.add(balloonGroup);
+const balloons = [];
+const michiganBlue = 0x00274C;
+const michiganMaize = 0xFFCB05;
+
+function spawnBalloons() {
+  for (let i = 0; i < 50; i++) {
+    const color = i % 2 === 0 ? michiganBlue : michiganMaize;
+    const bGroup = new THREE.Group();
+
+    // Balloon body (elongated sphere)
+    const bGeo = new THREE.SphereGeometry(0.25, 12, 12);
+    const bMat = new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.3,
+      metalness: 0.1,
+      emissive: new THREE.Color(color).multiplyScalar(0.3), // glow so dark blue is visible
+    });
+    const balloon = new THREE.Mesh(bGeo, bMat);
+    balloon.scale.set(1, 1.3, 1);
+    bGroup.add(balloon);
+
+    // Knot at bottom
+    const knotGeo = new THREE.ConeGeometry(0.04, 0.08, 6);
+    const knot = new THREE.Mesh(knotGeo, bMat);
+    knot.position.y = -0.33;
+    knot.rotation.x = Math.PI;
+    bGroup.add(knot);
+
+    // String
+    const stringGeo = new THREE.CylinderGeometry(0.008, 0.008, 1.0, 4);
+    const stringMat = new THREE.MeshBasicMaterial({ color: 0x888888 });
+    const string = new THREE.Mesh(stringGeo, stringMat);
+    string.position.y = -0.83;
+    bGroup.add(string);
+
+    // Start position below scene
+    const spread = 8;
+    bGroup.position.set(
+      (Math.random() - 0.5) * spread,
+      -5 - Math.random() * 5,
+      (Math.random() - 0.5) * spread
+    );
+
+    balloonGroup.add(bGroup);
+    balloons.push({
+      mesh: bGroup,
+      vy: 2.0 + Math.random() * 2.0,
+      drift: Math.random() * Math.PI * 2, // phase offset for sine drift
+      driftSpeed: 0.5 + Math.random() * 0.5,
+      driftAmp: 0.3 + Math.random() * 0.3,
+      bobPhase: Math.random() * Math.PI * 2,
+      delay: Math.random() * 2.0, // stagger spawn
+      started: false,
+    });
+  }
+}
+
+function updateBalloons(dt, elapsed) {
+  for (let i = balloons.length - 1; i >= 0; i--) {
+    const b = balloons[i];
+    if (!b.started) {
+      b.delay -= dt;
+      if (b.delay > 0) continue;
+      b.started = true;
+    }
+    b.mesh.position.y += b.vy * dt;
+    // Gentle horizontal drift
+    b.mesh.position.x += Math.sin(elapsed * b.driftSpeed + b.drift) * b.driftAmp * dt;
+    // Slight bobbing
+    b.mesh.position.y += Math.sin(elapsed * 2 + b.bobPhase) * 0.1 * dt;
+
+    // Remove if way above camera
+    if (b.mesh.position.y > 25) {
+      balloonGroup.remove(b.mesh);
+      b.mesh.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+      balloons.splice(i, 1);
+    }
+  }
+}
+
+function clearBalloons() {
+  for (const b of balloons) {
+    balloonGroup.remove(b.mesh);
+    b.mesh.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+  }
+  balloons.length = 0;
+}
+
+// ── Phase 2 Michigan confetti ──
+const phase2Confetti = [];
+const phase2ConfettiGroup = new THREE.Group();
+scene.add(phase2ConfettiGroup);
+
+function launchPhase2Confetti() {
+  const colors = [michiganBlue, michiganMaize];
+  for (let i = 0; i < 400; i++) {
+    const w = 0.06 + Math.random() * 0.1;
+    const h = 0.04 + Math.random() * 0.08;
+    const geo = new THREE.PlaneGeometry(w, h);
+    const mat = new THREE.MeshStandardMaterial({
+      color: colors[Math.floor(Math.random() * colors.length)],
+      side: THREE.DoubleSide,
+      roughness: 0.5,
+      metalness: 0.2,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    const spread = 14;
+    mesh.position.set(
+      (Math.random() - 0.5) * spread,
+      10 + Math.random() * 8,
+      (Math.random() - 0.5) * spread
+    );
+    mesh.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
+    phase2ConfettiGroup.add(mesh);
+    const xz = Math.sqrt(mesh.position.x ** 2 + mesh.position.z ** 2);
+    const landY = xz < 3 ? 0.5 : 0.15 + Math.random() * 0.05;
+    phase2Confetti.push({
+      mesh,
+      vy: -(1.5 + Math.random() * 1.0),
+      vx: (Math.random() - 0.5) * 0.15,
+      vz: (Math.random() - 0.5) * 0.15,
+      rotSpeed: { x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2, z: (Math.random() - 0.5) * 1 },
+      landed: false,
+      landY,
+      delay: Math.random() * 1.5,
+      started: false,
+    });
+  }
+}
+
+function updatePhase2Confetti(dt) {
+  for (const p of phase2Confetti) {
+    if (p.landed) continue;
+    if (!p.started) {
+      p.delay -= dt;
+      if (p.delay > 0) { p.mesh.visible = false; continue; }
+      p.started = true;
+      p.mesh.visible = true;
+    }
+    p.vy -= 2.5 * dt;
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.mesh.position.z += p.vz * dt;
+    p.mesh.rotation.x += p.rotSpeed.x * dt;
+    p.mesh.rotation.y += p.rotSpeed.y * dt;
+    p.mesh.rotation.z += p.rotSpeed.z * dt;
+    if (p.mesh.position.y <= p.landY) {
+      p.mesh.position.y = p.landY;
+      p.landed = true;
+      p.mesh.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+      p.mesh.rotation.z = Math.random() * Math.PI * 2;
+    }
+  }
+}
+
+function clearPhase2Confetti() {
+  for (const p of phase2Confetti) {
+    phase2ConfettiGroup.remove(p.mesh);
+    p.mesh.geometry.dispose();
+    p.mesh.material.dispose();
+  }
+  phase2Confetti.length = 0;
+}
+
+// ── Spotlight for Phase 2 reveal ──
+const spotLight = new THREE.SpotLight(0xffffff, 0, 25, Math.PI / 5, 0.4, 0.8);
+spotLight.position.set(0, 12, 0);
+spotLight.target.position.set(0, 0, 0);
+scene.add(spotLight);
+scene.add(spotLight.target);
+
+// Store original scene values for blackout/restore
+const origBgColor = new THREE.Color(0x1a1a2e);
+const origFogDensity = 0.015;
+
+// ── Phase 2 trigger: enter wickReady after Phase 1 completes ──
+function enterPhase2() {
+  if (phase2State !== 'idle') return; // guard against multiple calls
+  phase2State = 'wickReady';
+  wickReadyTime = performance.now() / 1000;
+
+  // Show TNT and wick
+  tntGroup.visible = true;
+  wickTube.visible = true;
+  wickHitbox.visible = true;
+  wickGlow.visible = true;
+
+  // Show fuse instruction
+  document.getElementById('fuse-instructions').style.display = 'block';
+  document.getElementById('fuse-instructions').style.opacity = '1';
+
+  // Hide reset button during Phase 2
+  document.getElementById('reset-btn').style.display = 'none';
+}
+
+// ── Phase 2 wick tap handler (added to existing pointerup) ──
+function handlePhase2Click(event) {
+  if (phase2State !== 'wickReady') return false;
+
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const hits = raycaster.intersectObjects([wickHitbox, wickTube]);
+  if (hits.length > 0) {
+    startWickBurn();
+    return true;
+  }
+  return false;
+}
+
+function startWickBurn() {
+  if (phase2State !== 'wickReady') return; // guard against multiple calls
+  phase2State = 'wickBurning';
+  wickBurnStart = performance.now() / 1000;
+  wickGlow.visible = false;
+  wickHitbox.visible = false;
+
+  // Hide fuse instruction
+  document.getElementById('fuse-instructions').style.opacity = '0';
+  setTimeout(() => { document.getElementById('fuse-instructions').style.display = 'none'; }, 500);
+
+  // Play fight song on user gesture (satisfies mobile autoplay)
+  if (fightSong && fightSongLoaded) {
+    fightSong.volume = 0;
+    fightSong.currentTime = 0;
+    fightSong.play().catch(() => {});
+  }
+}
+
+// ── Hide Phase 1 cake elements for explosion ──
+function hidePhase1Elements() {
+  // Hide the entire cake group (bottom cake, sprinkles, frosting dots, logos, etc.)
+  cakeGroup.visible = false;
+  // Hide platter and plate
+  table.visible = false;
+  ridgeOuter.visible = false;
+  ridgeInner.visible = false;
+  plate.visible = false;
+  // Hide TNT, wick, and tray decorations
+  tntGroup.visible = false;
+  wickTube.visible = false;
+  trayDecoGroup.visible = false;
+
+  // Re-launch settled Phase 1 confetti (blow it up)
+  for (const p of confetti3D) {
+    if (p.landed) {
+      p.landed = false;
+      p.vy = 3 + Math.random() * 5;
+      p.vx = (Math.random() - 0.5) * 3;
+      p.vz = (Math.random() - 0.5) * 3;
+      p.started = true;
+      p.mesh.visible = true;
+      p.landY = -5; // let them fall off screen
+    }
+  }
+}
+
+// ── Update Phase 2 pointerup listener ──
+// Patch the existing pointerup to also handle Phase 2
+const origPointerUp = renderer.domElement.onpointerup;
+renderer.domElement.addEventListener('pointerup', (event) => {
+  const dx = event.clientX - mouseDownPos.x;
+  const dy = event.clientY - mouseDownPos.y;
+  if (Math.sqrt(dx * dx + dy * dy) > 5) return;
+  handlePhase2Click(event);
+});
+
+// ── Phase 2 animation update (called from main animate loop) ──
+function updatePhase2(elapsed, dt) {
+  const now = performance.now() / 1000;
+
+  // ── wickReady: pulse glow, auto-light after 20s ──
+  if (phase2State === 'wickReady') {
+    const readyElapsed = now - wickReadyTime;
+    // Pulse the glow
+    wickGlow.material.opacity = 0.4 + Math.sin(elapsed * 4) * 0.3;
+    wickGlow.scale.setScalar(1.0 + Math.sin(elapsed * 3) * 0.2);
+
+    // After 10s, pulse more intensely + bounce text
+    if (readyElapsed > 10) {
+      wickGlow.material.opacity = 0.5 + Math.sin(elapsed * 8) * 0.4;
+      const fuseEl = document.getElementById('fuse-instructions');
+      fuseEl.style.transform = `translateX(-50%) scale(${1.0 + Math.sin(elapsed * 4) * 0.1})`;
+    }
+    // Auto-light after 20s
+    if (readyElapsed > 20) {
+      startWickBurn();
+    }
+    return;
+  }
+
+  // ── wickBurning: burn shader + sparks ──
+  if (phase2State === 'wickBurning') {
+    const wickT = Math.min((now - wickBurnStart) / wickBurnDuration, 1.0);
+    wickBurnUniforms.uBurnProgress.value = wickT;
+    wickBurnUniforms.uTime.value = elapsed;
+
+    // Spawn sparks at burn front
+    const burnPt = wickCurve.getPointAt(Math.min(wickT, 0.99));
+    if (Math.random() < 0.4) spawnSpark(burnPt);
+    updateSparks(dt);
+
+    // Ramp fight song volume during wick burn
+    if (fightSong && fightSongLoaded) {
+      fightSong.volume = Math.min(0.3, wickT * 0.3);
+    }
+
+    // Wick fully burned → slow-mo
+    if (wickT >= 1.0) {
+      phase2State = 'slowMo';
+      slowMoStart = now;
+      clearSparks();
+    }
+    return;
+  }
+
+  // ── slowMo: 0.8 second tension beat ──
+  if (phase2State === 'slowMo') {
+    const slowT = (now - slowMoStart) / 0.8;
+    // TNT pulses red/orange
+    const pulse = Math.sin(elapsed * 20) * 0.5 + 0.5;
+    tntMat.emissive.setRGB(pulse * 0.8, pulse * 0.1, 0);
+
+    // Intensify sparks at TNT
+    if (Math.random() < 0.6) spawnSpark(tntGroup.position.clone().setY(0.5));
+    updateSparks(dt);
+
+    // Drop fight song volume for tension
+    if (fightSong && fightSongLoaded) try { fightSong.volume = Math.max(0.05, 0.3 - slowT * 0.25); } catch(e) {}
+
+    if (slowT >= 1.0) {
+      // BOOM
+      phase2State = 'exploding';
+      explosionStart = now;
+      tntMat.emissive.setRGB(0, 0, 0);
+      clearSparks();
+
+      // White flash
+      const flash = document.getElementById('white-flash');
+      flash.style.display = 'block';
+      flash.style.opacity = '1';
+
+      // Screen shake
+      shakeAmplitude = 0.4;
+      shakeDecay = 5.0;
+      shakeTime = 0;
+
+      // Hide Phase 1 cake elements
+      hidePhase1Elements();
+
+      // Spawn explosion particles
+      triggerExplosion();
+
+      // Fight song full volume
+      if (fightSong && fightSongLoaded) fightSong.volume = 1.0;
+    }
+    return;
+  }
+
+  // ── exploding: flash fades, particles fly, then blackout ──
+  if (phase2State === 'exploding') {
+    const expT = now - explosionStart;
+
+    // Fade white flash
+    const flash = document.getElementById('white-flash');
+    flash.style.opacity = String(Math.max(0, 1.0 - expT / 0.3));
+    if (expT > 0.3) flash.style.display = 'none';
+
+    // Screen shake
+    shakeTime += dt;
+    shakeAmplitude = 0.4 * Math.exp(-shakeDecay * shakeTime);
+
+    updateExplosionParticles(dt);
+    // Update re-launched Phase 1 confetti
+    if (confetti3D.length > 0) updateConfetti3D(Math.min(dt, 0.05), elapsed);
+
+    // After 1.2s, transition to blackout
+    if (expT > 1.2) {
+      phase2State = 'blackout';
+      blackoutStart = now;
+      clearExplosionParticles();
+      // Clear Phase 1 confetti fully
+      clearConfetti3D();
+    }
+    return;
+  }
+
+  // ── blackout: fade to dark, then spotlight + monument rise ──
+  if (phase2State === 'blackout') {
+    const bT = now - blackoutStart;
+
+    // Fade scene to dark
+    if (bT < 0.3) {
+      const fade = bT / 0.3;
+      scene.background.lerpColors(origBgColor, new THREE.Color(0x010108), fade);
+      scene.fog.density = origFogDensity + fade * 0.1;
+      ambientLight.intensity = 0.4 * (1 - fade * 0.8);
+      dirLight.intensity = 1.0 * (1 - fade * 0.9);
+      fillLight.intensity = 0.3 * (1 - fade * 0.9);
+    }
+
+    // 0.5s of darkness, then start reveal
+    if (bT > 0.8) {
+      phase2State = 'revealing';
+      revealStart = now;
+
+      // Show monument
+      monumentGroup.visible = true;
+
+      // Start spotlight
+      spotLight.intensity = 0;
+
+    }
+    return;
+  }
+
+  // ── revealing: monument rises, spotlight fades in ──
+  if (phase2State === 'revealing') {
+    const rT = now - revealStart;
+
+    // Spotlight fades in (bright for dramatic reveal)
+    spotLight.intensity = Math.min(15, rT * 15);
+
+    // Bring lights back up so everything is clearly visible
+    const lightT = Math.min(1, rT / 1.5);
+    ambientLight.intensity = 0.1 + lightT * 0.5; // ramp to 0.6
+    dirLight.intensity = lightT * 0.8;
+    fillLight.intensity = lightT * 0.4;
+    // Kill fog so it doesn't eat the scene
+    scene.fog.density = 0.115 * (1 - lightT); // fade fog out to 0
+    // Background transitions to warm dark gray (not blue, so blue letters pop)
+    scene.background.lerpColors(new THREE.Color(0x010108), new THREE.Color(0x1a1a1a), lightT);
+
+    // Monument rises from y=-3 to y=0 over 1.2 seconds
+    const riseT = Math.min(1, rT / 1.2);
+    const eased = 1 - Math.pow(1 - riseT, 3); // ease-out cubic
+    monumentGroup.position.y = -3 + 3 * eased;
+
+    // After 1.5s, transition to celebrating
+    if (rT > 2.0) {
+      phase2State = 'celebrating';
+      phase2StartTime = now;
+
+      // Spawn balloons
+      spawnBalloons();
+
+      // Launch Michigan confetti
+      launchPhase2Confetti();
+
+      // Show congratulations text
+      const congrats = document.getElementById('congrats-overlay');
+      congrats.style.display = 'block';
+      setTimeout(() => { congrats.style.transform = 'translate(-50%, 0) scale(1)'; }, 50);
+
+      // Show reset button
+      setTimeout(() => { document.getElementById('reset-btn').style.display = 'block'; }, 2000);
+    }
+    return;
+  }
+
+  // ── celebrating: balloons float, confetti falls ──
+  if (phase2State === 'celebrating') {
+    updateBalloons(dt, elapsed);
+    updatePhase2Confetti(dt);
+
+    // Gentle monument rotation
+    monumentGroup.rotation.y += 0.1 * dt;
+
+    return;
+  }
+}
+
+// ── Phase 2 Reset ──
+function resetPhase2() {
+  phase2State = 'idle';
+
+  // Clear all Phase 2 elements
+  tntGroup.visible = false;
+  wickTube.visible = false;
+  wickHitbox.visible = false;
+  wickGlow.visible = false;
+  wickBurnUniforms.uBurnProgress.value = 0;
+
+  clearSparks();
+  clearExplosionParticles();
+  clearBalloons();
+  clearPhase2Confetti();
+
+  monumentGroup.visible = false;
+  monumentGroup.position.y = -3;
+  monumentGroup.rotation.y = 0;
+
+
+  shakeAmplitude = 0;
+  spotLight.intensity = 0;
+
+  // Restore scene
+  scene.background.copy(origBgColor);
+  scene.fog.density = origFogDensity;
+  ambientLight.intensity = 0.4;
+  dirLight.intensity = 1.0;
+  fillLight.intensity = 0.3;
+
+  // Restore Phase 1 elements
+  bottomCake.visible = true;
+  bottomRim.visible = true;
+  revealLayer.visible = true;
+  ribbon.visible = true;
+  ribbonEdgeTop.visible = true;
+  ribbonEdgeBottom.visible = true;
+  trayDecoGroup.visible = true;
+
+  // Hide overlays
+  document.getElementById('white-flash').style.display = 'none';
+  document.getElementById('congrats-overlay').style.display = 'none';
+  document.getElementById('congrats-overlay').style.transform = 'translate(-50%, 0) scale(0)';
+  document.getElementById('fuse-instructions').style.display = 'none';
+
+  // Stop fight song
+  if (fightSong) {
+    fightSong.pause();
+    fightSong.currentTime = 0;
+  }
+}
+
+// ===== END PHASE 2 =====
+
 // ── Animation loop ──
 const clock = new THREE.Clock();
 let lastFrameTime = 0;
@@ -1469,18 +2361,20 @@ function animate() {
 
   controls.update();
 
-  // Flame animation
+  // Flame animation (flicker only — scale/intensity handled by burn logic when burning)
   if (flameGroup.visible) {
     const flicker = Math.sin(elapsed * 15) * 0.03 + Math.sin(elapsed * 23) * 0.02;
-    flameGroup.scale.set(
-      1 + Math.sin(elapsed * 12) * 0.1,
-      1 + Math.sin(elapsed * 8) * 0.08,
-      1 + Math.sin(elapsed * 10) * 0.1
-    );
     flameGroup.position.x = flicker;
     flameGroup.position.z = Math.sin(elapsed * 17) * 0.02;
 
-    flameLight.intensity = 2.0 + Math.sin(elapsed * 15) * 0.5;
+    if (!isBurning) {
+      flameGroup.scale.set(
+        1 + Math.sin(elapsed * 12) * 0.1,
+        1 + Math.sin(elapsed * 8) * 0.08,
+        1 + Math.sin(elapsed * 10) * 0.1
+      );
+      flameLight.intensity = 2.0 + Math.sin(elapsed * 15) * 0.5;
+    }
   }
 
   // Burn animation
@@ -1518,8 +2412,30 @@ function animate() {
       }
     });
 
-    // Top cake walls burn gradually via shader — only hide candle/flame when burn reaches rim
-    if (t > 0.7) {
+    // Candle burns down progressively — shrinks and melts as burn progresses
+    if (t < 0.7) {
+      const candleScale = 1.0 - t * 1.2; // shrinks to ~0.16 by t=0.7
+      const clampedScale = Math.max(0.05, candleScale);
+      candle.scale.y = clampedScale;
+      candle.position.y = 0.5 * clampedScale; // keep base grounded
+      wick.position.y = 1.0 * clampedScale + 0.075;
+      flameGroup.position.y = 1.0 * clampedScale + 0.15;
+
+      // Flame shrinks and fades out toward the end
+      const flameFade = Math.max(0, (0.7 - t) / 0.3); // fades over last 30% of candle life
+      const flameScale = 0.3 + 0.7 * flameFade;
+      flameGroup.scale.set(
+        flameScale * (1 + Math.sin(elapsed * 12) * 0.1),
+        flameScale * (1 + Math.sin(elapsed * 8) * 0.08),
+        flameScale * (1 + Math.sin(elapsed * 10) * 0.1)
+      );
+      outerFlameMat.opacity = 0.7 * flameFade;
+      innerFlameMat.opacity = 0.9 * flameFade;
+      flameLight.intensity = (2.0 + Math.sin(elapsed * 15) * 0.5) * flameFade;
+
+      // Update flame light position to follow
+      flameLight.position.y = candleGroup.position.y + flameGroup.position.y;
+    } else {
       candleGroup.visible = false;
       flameGroup.visible = false;
       flameLight.intensity = 0;
@@ -1557,6 +2473,17 @@ function animate() {
   lastFrameTime = elapsed;
   if (confetti3D.length > 0) {
     updateConfetti3D(Math.min(dt, 0.05), elapsed);
+  }
+
+  // ── Phase 2 update ──
+  if (phase2State !== 'idle') {
+    updatePhase2(elapsed, Math.min(dt, 0.05));
+  }
+
+  // ── Screen shake ──
+  if (shakeAmplitude > 0.001) {
+    camera.position.x += Math.sin(elapsed * 50) * shakeAmplitude;
+    camera.position.y += Math.cos(elapsed * 40) * shakeAmplitude * 0.5;
   }
 
   renderer.render(scene, camera);
