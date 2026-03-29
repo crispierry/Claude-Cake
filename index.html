@@ -1513,6 +1513,8 @@ let slowMoStart = 0;
 let explosionStart = 0;
 let blackoutStart = 0;
 let revealStart = 0;
+let cameraStartPos = null;
+let cameraStartTarget = null;
 let wickReadyTime = 0;
 let phase2AudioContext = null;
 
@@ -1791,24 +1793,26 @@ let shakeTime = 0;
 
 // ── Michigan Cube (Endover Cube) ──
 // The iconic sculpture on U-M campus: a dark steel cube balanced on one vertex, rotating
-// Structure: monumentGroup (translate) → cubeTiltGroup (static tilt to balance on vertex)
-//            → cubeSpinGroup (spins around body diagonal = world Y after tilt)
+// Structure: monumentGroup (translate) → cubeSpinGroup (spins around world Y)
+//            → cubeTiltGroup (static tilt to balance on vertex)
 const monumentGroup = new THREE.Group();
 monumentGroup.visible = false;
 monumentGroup.position.y = -5; // starts below scene
 scene.add(monumentGroup);
 
-// Tilt group: rotates so one vertex points straight down
-// 45° on Z, then arctan(1/√2) on X balances perfectly on one vertex
-const cubeTiltGroup = new THREE.Group();
-cubeTiltGroup.rotation.z = Math.PI / 4;
-cubeTiltGroup.rotation.x = Math.atan(1 / Math.SQRT2);
-monumentGroup.add(cubeTiltGroup);
-
-// Spin group: rotates around Y axis (which is the body diagonal after tilt)
-// This makes the bottom vertex stay fixed while the cube spins
+// Spin group: rotates around world Y axis (OUTER group, so Y = world vertical)
+// Bottom vertex stays fixed while the cube spins horizontally
 const cubeSpinGroup = new THREE.Group();
-cubeTiltGroup.add(cubeSpinGroup);
+monumentGroup.add(cubeSpinGroup);
+
+// Tilt group: rotates so one vertex points straight down (INNER group)
+// Quaternion aligns body diagonal (1,1,1) with vertical (0,1,0)
+const cubeTiltGroup = new THREE.Group();
+cubeTiltGroup.quaternion.setFromUnitVectors(
+  new THREE.Vector3(1, 1, 1).normalize(),
+  new THREE.Vector3(0, 1, 0)
+);
+cubeSpinGroup.add(cubeTiltGroup);
 
 const cubeSize = 2.4;
 
@@ -1864,15 +1868,15 @@ function buildCubeFace(group, faceAxis, faceSign) {
 // Inner cube body (slightly smaller, visible through gaps as the dark channel)
 const innerCubeGeo = new THREE.BoxGeometry(cubeSize - 0.12, cubeSize - 0.12, cubeSize - 0.12);
 const innerCube = new THREE.Mesh(innerCubeGeo, channelMat);
-cubeSpinGroup.add(innerCube);
+cubeTiltGroup.add(innerCube);
 
 // Build all 6 faces with paneled surface
-buildCubeFace(cubeSpinGroup, 'z', 1);   // front
-buildCubeFace(cubeSpinGroup, 'z', -1);  // back
-buildCubeFace(cubeSpinGroup, 'x', 1);   // right
-buildCubeFace(cubeSpinGroup, 'x', -1);  // left
-buildCubeFace(cubeSpinGroup, 'y', 1);   // top
-buildCubeFace(cubeSpinGroup, 'y', -1);  // bottom
+buildCubeFace(cubeTiltGroup, 'z', 1);   // front
+buildCubeFace(cubeTiltGroup, 'z', -1);  // back
+buildCubeFace(cubeTiltGroup, 'x', 1);   // right
+buildCubeFace(cubeTiltGroup, 'x', -1);  // left
+buildCubeFace(cubeTiltGroup, 'y', 1);   // top
+buildCubeFace(cubeTiltGroup, 'y', -1);  // bottom
 
 // Edge frame pieces (the raised edges between faces)
 const edgeLen = cubeSize;
@@ -1896,7 +1900,7 @@ edgePositions.forEach(({ pos, size }) => {
   const geo = new THREE.BoxGeometry(...size);
   const mesh = new THREE.Mesh(geo, cubeMat);
   mesh.position.set(...pos);
-  cubeSpinGroup.add(mesh);
+  cubeTiltGroup.add(mesh);
 });
 
 // The bottom vertex when balanced is at y = -cubeSize * sqrt(3)/2 ≈ -2.08
@@ -2327,6 +2331,9 @@ function updatePhase2(elapsed, dt) {
       // Start spotlight
       spotLight.intensity = 0;
 
+      // Save camera start position for smooth transition to eye-level
+      cameraStartPos = camera.position.clone();
+      cameraStartTarget = controls.target.clone();
     }
     return;
   }
@@ -2353,6 +2360,17 @@ function updatePhase2(elapsed, dt) {
     const eased = 1 - Math.pow(1 - riseT, 3); // ease-out cubic
     // Rise so the cube's bottom vertex lands near y=0, center of cube at y=cubeVertexOffset
     monumentGroup.position.y = -5 + (cubeVertexOffset + 5) * eased;
+
+    // Smooth camera transition to eye-level view (flat horizon)
+    const camT = Math.min(1, rT / 2.0);
+    const camEased = 1 - Math.pow(1 - camT, 3);
+    if (cameraStartPos) {
+      const targetCamPos = new THREE.Vector3(0, 3, 10);
+      const targetLookAt = new THREE.Vector3(0, cubeVertexOffset, 0);
+      camera.position.lerpVectors(cameraStartPos, targetCamPos, camEased);
+      controls.target.lerpVectors(cameraStartTarget, targetLookAt, camEased);
+      controls.update();
+    }
 
     // After 1.5s, transition to celebrating
     if (rT > 2.0) {
@@ -2592,6 +2610,7 @@ window.addEventListener('resize', () => {
   // Only reset camera position if user hasn't manually moved it much
   // (preserve user's orbit state)
 });
+
 
 </script>
 </body>
