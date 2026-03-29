@@ -1539,7 +1539,7 @@ let phase2AudioContext = null;
 let fightSong = null;
 let fightSongLoaded = false;
 try {
-  fightSong = new Audio('victors.mp3');
+  fightSong = new Audio('https://archive.org/download/stmacma-Stoughton_High_Symphonic_Band_-_The_Victors_-_University_of_Michigan_Fight_Song/Stoughton_High_Symphonic_Band_-_The_Victors_-_University_of_Michigan_Fight_Song.mp3');
   fightSong.preload = 'auto';
   fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
 } catch(e) { /* no audio, that's fine */ }
