@@ -6,7 +6,7 @@
 <title>Celebration Cake</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { overflow: hidden; background: #1a1a2e; font-family: 'Georgia', serif; }
+  body { overflow: hidden; background: #f5f0eb; font-family: 'Georgia', serif; }
   canvas { display: block; }
   #instructions {
     position: fixed;
@@ -98,9 +98,10 @@
   #congrats-overlay {
     position: fixed;
     top: 8%;
-    left: 50%;
-    transform: translate(-50%, 0) scale(0);
-    font-size: 52px;
+    left: 0;
+    width: 100%;
+    transform: scale(0);
+    font-size: clamp(28px, 5vw, 52px);
     font-weight: bold;
     font-family: 'Georgia', serif;
     text-shadow: 0 2px 8px rgba(0,0,0,0.6);
@@ -122,10 +123,10 @@
 <button id="fuse-instructions" onclick="window.lightTheFuse && window.lightTheFuse()">Light the Fuse!</button>
 <div id="white-flash"></div>
 <div id="congrats-overlay">
-  <div style="display:flex; align-items:center; justify-content:center; gap:20px;">
-    <img src="logos/michigan.png" style="height:120px; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
-    <div><span id="congrats-text"></span><br><span id="tati-text" style="font-size:44px; color:#fff; text-shadow: 0 2px 8px rgba(0,0,0,0.6);">Tati</span><br><span id="goblue-text" style="font-size:36px"></span></div>
-    <img src="logos/michigan.png" style="height:120px; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
+  <div style="display:flex; align-items:center; justify-content:center; gap:clamp(12px, 2vw, 24px); max-width:100vw; padding:0 10px; box-sizing:border-box;">
+    <img src="logos/michigan.png" id="congrats-logo-left" style="height:172px; flex-shrink:0; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
+    <div id="congrats-text-block" style="flex-shrink:1; min-width:0;"><span id="congrats-text"></span><br><span id="tati-text" style="font-size:44px; color:#fff; text-shadow: 0 2px 8px rgba(0,0,0,0.6);">Tati</span><br><span id="goblue-text" style="font-size:36px"></span></div>
+    <img src="logos/michigan.png" id="congrats-logo-right" style="height:172px; flex-shrink:0; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
   </div>
 </div>
 <script>
@@ -145,6 +146,24 @@ function colorLetters(text, elId) {
 }
 colorLetters('CONGRATULATIONS!', 'congrats-text');
 colorLetters('GO BLUE!', 'goblue-text');
+
+// Match logo height to the text block (from top of CONGRATULATIONS to bottom of GO BLUE)
+function matchLogoHeight() {
+  const textBlock = document.getElementById('congrats-text-block');
+  const left = document.getElementById('congrats-logo-left');
+  const right = document.getElementById('congrats-logo-right');
+  if (textBlock && left && right) {
+    const h = textBlock.offsetHeight + 'px';
+    left.style.height = h;
+    right.style.height = h;
+  }
+}
+// Run after overlay becomes visible (MutationObserver watches display changes)
+new MutationObserver(() => {
+  const overlay = document.getElementById('congrats-overlay');
+  if (overlay && overlay.style.display !== 'none') matchLogoHeight();
+}).observe(document.getElementById('congrats-overlay'), { attributes: true, attributeFilter: ['style'] });
+window.addEventListener('resize', matchLogoHeight);
 </script>
 
 <script type="importmap">
@@ -162,8 +181,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ── Scene setup ──
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a2e);
-scene.fog = new THREE.FogExp2(0x1a1a2e, 0.015);
+scene.background = new THREE.Color(0xf5f0eb);
+scene.fog = new THREE.FogExp2(0xf5f0eb, 0.008);
 
 // ── Viewport-aware camera setup ──
 // Cake spans y≈0 (platter) to y≈4.5 (candle tip). We place the camera
@@ -1527,7 +1546,7 @@ try {
 
 // ── TNT Block ──
 const tntGroup = new THREE.Group();
-tntGroup.visible = false;
+tntGroup.visible = true;
 scene.add(tntGroup);
 
 // TNT box
@@ -1638,7 +1657,7 @@ const wickTubeMat = new THREE.ShaderMaterial({
   side: THREE.DoubleSide,
 });
 const wickTube = new THREE.Mesh(wickTubeGeo, wickTubeMat);
-wickTube.visible = false;
+wickTube.visible = true;
 scene.add(wickTube);
 
 // Invisible hitbox at wick start (end of curve = tap point)
@@ -1647,7 +1666,7 @@ const wickHitGeo = new THREE.SphereGeometry(0.5, 8, 8);
 const wickHitMat = new THREE.MeshBasicMaterial({ visible: false });
 const wickHitbox = new THREE.Mesh(wickHitGeo, wickHitMat);
 wickHitbox.position.copy(wickEndPt);
-wickHitbox.visible = false;
+wickHitbox.visible = true;
 scene.add(wickHitbox);
 
 // Wick-end glow indicator
@@ -1655,7 +1674,7 @@ const wickGlowGeo = new THREE.SphereGeometry(0.12, 12, 12);
 const wickGlowMat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.6 });
 const wickGlow = new THREE.Mesh(wickGlowGeo, wickGlowMat);
 wickGlow.position.copy(wickEndPt);
-wickGlow.visible = false;
+wickGlow.visible = true;
 scene.add(wickGlow);
 
 // ── Spark particles for wick burn ──
@@ -2086,8 +2105,8 @@ scene.add(spotLight);
 scene.add(spotLight.target);
 
 // Store original scene values for blackout/restore
-const origBgColor = new THREE.Color(0x1a1a2e);
-const origFogDensity = 0.015;
+const origBgColor = new THREE.Color(0xf5f0eb);
+const origFogDensity = 0.008;
 
 // ── Phase 2 trigger: enter wickReady after Phase 1 completes ──
 function enterPhase2() {
@@ -2306,14 +2325,12 @@ function updatePhase2(elapsed, dt) {
   if (phase2State === 'blackout') {
     const bT = now - blackoutStart;
 
-    // Fade scene to dark
+    // Dim lights for dramatic effect (background stays the same)
     if (bT < 0.3) {
       const fade = bT / 0.3;
-      scene.background.lerpColors(origBgColor, new THREE.Color(0x010108), fade);
-      scene.fog.density = origFogDensity + fade * 0.1;
-      ambientLight.intensity = 0.4 * (1 - fade * 0.8);
-      dirLight.intensity = 1.0 * (1 - fade * 0.9);
-      fillLight.intensity = 0.3 * (1 - fade * 0.9);
+      ambientLight.intensity = 0.4 * (1 - fade * 0.6);
+      dirLight.intensity = 1.0 * (1 - fade * 0.7);
+      fillLight.intensity = 0.3 * (1 - fade * 0.7);
     }
 
     // 0.5s of darkness, then start reveal
@@ -2340,13 +2357,11 @@ function updatePhase2(elapsed, dt) {
 
     // Bring lights back up so everything is clearly visible
     const lightT = Math.min(1, rT / 1.5);
-    ambientLight.intensity = 0.1 + lightT * 0.5; // ramp to 0.6
-    dirLight.intensity = lightT * 0.8;
-    fillLight.intensity = lightT * 0.4;
-    // Kill fog so it doesn't eat the scene
-    scene.fog.density = 0.115 * (1 - lightT); // fade fog out to 0
-    // Background transitions to warm dark gray (not blue, so blue letters pop)
-    scene.background.lerpColors(new THREE.Color(0x010108), new THREE.Color(0x1a1a1a), lightT);
+    ambientLight.intensity = 0.16 + lightT * 0.44; // ramp back to 0.6
+    dirLight.intensity = 0.3 + lightT * 0.5;
+    fillLight.intensity = 0.09 + lightT * 0.31;
+    // Keep fog consistent
+    scene.fog.density = origFogDensity;
 
     // Monument rises from y=-3 to y=0 over 1.2 seconds
     const riseT = Math.min(1, rT / 1.2);
@@ -2368,7 +2383,7 @@ function updatePhase2(elapsed, dt) {
       // Show congratulations text
       const congrats = document.getElementById('congrats-overlay');
       congrats.style.display = 'block';
-      setTimeout(() => { congrats.style.transform = 'translate(-50%, 0) scale(1)'; }, 50);
+      setTimeout(() => { congrats.style.transform = 'scale(1)'; }, 50);
 
       // Show reset button
       setTimeout(() => { document.getElementById('reset-btn').style.display = 'block'; }, 2000);
@@ -2392,11 +2407,11 @@ function updatePhase2(elapsed, dt) {
 function resetPhase2() {
   phase2State = 'idle';
 
-  // Clear all Phase 2 elements
-  tntGroup.visible = false;
-  wickTube.visible = false;
-  wickHitbox.visible = false;
-  wickGlow.visible = false;
+  // Reset Phase 2 elements (TNT stays visible)
+  tntGroup.visible = true;
+  wickTube.visible = true;
+  wickHitbox.visible = true;
+  wickGlow.visible = true;
   wickBurnUniforms.uBurnProgress.value = 0;
 
   clearSparks();
@@ -2430,7 +2445,7 @@ function resetPhase2() {
   // Hide overlays
   document.getElementById('white-flash').style.display = 'none';
   document.getElementById('congrats-overlay').style.display = 'none';
-  document.getElementById('congrats-overlay').style.transform = 'translate(-50%, 0) scale(0)';
+  document.getElementById('congrats-overlay').style.transform = 'scale(0)';
   document.getElementById('fuse-instructions').style.display = 'none';
 
   // Stop fight song
