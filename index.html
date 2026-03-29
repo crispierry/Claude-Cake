@@ -65,15 +65,6 @@
     transition: background 0.3s;
   }
   #reset-btn:hover { background: rgba(255,255,255,0.3); }
-  #confetti-canvas {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 100;
-  }
 </style>
 </head>
 <body>
@@ -82,7 +73,6 @@
 <div id="instructions">Drag to rotate &bull; Scroll to zoom &bull; Click the candle to light it</div>
 <button id="light-btn" onclick="startBurn()">Light the Candle</button>
 <button id="reset-btn" onclick="resetCake()">Reset</button>
-<canvas id="confetti-canvas"></canvas>
 
 <script type="importmap">
 {
@@ -1044,10 +1034,7 @@ function startBurn() {
 window.resetCake = function() {
   isBurning = false;
   burnUniforms.burnProgress.value = 0;
-  confettiTriggered = false;
-  confettiActive = false;
-  confettiParticles = [];
-  confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  clearConfetti3D();
   flameGroup.visible = false;
   flameLight.intensity = 0;
   revealLogoMeshes.forEach(m => { m.material.opacity = 0; });
@@ -1170,114 +1157,132 @@ for (let i = 0; i < 24; i++) {
   topDots.push(dot);
 }
 
-// ── Confetti system (iMessage-style) ──
-const confettiCanvas = document.getElementById('confetti-canvas');
-const confettiCtx = confettiCanvas.getContext('2d');
-let confettiParticles = [];
-let confettiActive = false;
-let confettiTriggered = false;
-
-function resizeConfettiCanvas() {
-  confettiCanvas.width = window.innerWidth;
-  confettiCanvas.height = window.innerHeight;
-}
-resizeConfettiCanvas();
-window.addEventListener('resize', resizeConfettiCanvas);
-
+// ── 3D Confetti system (iMessage-style, lands on cake/tray) ──
 const celebrationColors = [
-  '#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF',
-  '#5856D6', '#AF52DE', '#FF2D55', '#00C7BE', '#FFD700',
-  '#E21833', '#00274C', // Maryland red, Michigan blue
+  0xFF3B30, 0xFF9500, 0xFFCC00, 0x34C759, 0x007AFF,
+  0x5856D6, 0xAF52DE, 0xFF2D55, 0x00C7BE, 0xFFD700,
+  0xE21833, 0x00274C, // Maryland red, Michigan blue
 ];
-
-const confettiShapes = ['rect', 'circle', 'strip'];
+const confetti3D = [];
+let confettiTriggered = false;
+const confettiGroup = new THREE.Group();
+scene.add(confettiGroup);
 
 function launchConfetti() {
-  if (confettiActive) return;
-  confettiActive = true;
-  confettiParticles = [];
-
-  // Burst: spawn ~150 particles from the top, spread across width
-  for (let i = 0; i < 150; i++) {
-    const shape = confettiShapes[Math.floor(Math.random() * confettiShapes.length)];
-    confettiParticles.push({
-      x: Math.random() * confettiCanvas.width,
-      y: -20 - Math.random() * confettiCanvas.height * 0.3,
-      vx: (Math.random() - 0.5) * 4,
-      vy: Math.random() * 2 + 1.5,
-      rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * 0.15,
-      width: shape === 'strip' ? 3 + Math.random() * 3 : 6 + Math.random() * 6,
-      height: shape === 'strip' ? 12 + Math.random() * 14 : 6 + Math.random() * 6,
+  // Spawn 250 small confetti pieces falling from above
+  for (let i = 0; i < 250; i++) {
+    // Random shape: rectangle or square confetti
+    const w = 0.06 + Math.random() * 0.1;
+    const h = 0.04 + Math.random() * 0.08;
+    const geo = new THREE.PlaneGeometry(w, h);
+    const mat = new THREE.MeshStandardMaterial({
       color: celebrationColors[Math.floor(Math.random() * celebrationColors.length)],
-      shape: shape,
-      wobblePhase: Math.random() * Math.PI * 2,
-      wobbleSpeed: 1.5 + Math.random() * 2,
-      gravity: 0.02 + Math.random() * 0.02,
-      drag: 0.99 + Math.random() * 0.005,
-      opacity: 1,
-      flipPhase: Math.random() * Math.PI * 2,
-      flipSpeed: 2 + Math.random() * 3,
+      side: THREE.DoubleSide,
+      roughness: 0.5,
+      metalness: 0.1,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+
+    // Start position: spread above the cake, random XZ within a wide area
+    const spread = 5;
+    mesh.position.set(
+      (Math.random() - 0.5) * spread,
+      8 + Math.random() * 6, // start 8-14 units above
+      (Math.random() - 0.5) * spread
+    );
+
+    // Random initial rotation
+    mesh.rotation.set(
+      Math.random() * Math.PI * 2,
+      Math.random() * Math.PI * 2,
+      Math.random() * Math.PI * 2
+    );
+
+    confettiGroup.add(mesh);
+
+    // Landing surface: determine where this piece lands
+    // Cake top surface is at y ≈ 2.06, radius ≈ 2.6
+    // Tray/platter is at y ≈ 0, radius ≈ 4.5
+    const xz = Math.sqrt(mesh.position.x * mesh.position.x + mesh.position.z * mesh.position.z);
+    let landY;
+    if (xz < 2.5) {
+      landY = 2.1 + Math.random() * 0.05; // land on cake top
+    } else if (xz < 4.2) {
+      landY = 0.05 + Math.random() * 0.05; // land on tray
+    } else {
+      landY = -0.5; // land on ground
+    }
+
+    confetti3D.push({
+      mesh,
+      vy: -(1.5 + Math.random() * 1.0), // fall speed (straight down, fast)
+      vx: (Math.random() - 0.5) * 0.15,  // very slight horizontal drift
+      vz: (Math.random() - 0.5) * 0.15,
+      rotSpeed: {
+        x: (Math.random() - 0.5) * 2,
+        y: (Math.random() - 0.5) * 2,
+        z: (Math.random() - 0.5) * 1,
+      },
+      landed: false,
+      landY,
+      delay: Math.random() * 1.5, // stagger the start (0-1.5 seconds)
+      started: false,
     });
   }
 }
 
-function updateConfetti() {
-  if (!confettiActive) return;
-  confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+function updateConfetti3D(dt, elapsed) {
+  for (const p of confetti3D) {
+    if (p.landed) continue;
 
-  let allDone = true;
-  const now = performance.now() / 1000;
-
-  for (const p of confettiParticles) {
-    // Physics: gravity + wobble + drag (iMessage feel)
-    p.vy += p.gravity;
-    p.vx += Math.sin(now * p.wobbleSpeed + p.wobblePhase) * 0.15;
-    p.vx *= p.drag;
-    p.vy *= p.drag;
-    p.x += p.vx;
-    p.y += p.vy;
-    p.rotation += p.rotationSpeed;
-
-    // 3D flip effect: scale width by cos to simulate flipping
-    const flip = Math.cos(now * p.flipSpeed + p.flipPhase);
-    const drawWidth = Math.abs(flip) * p.width;
-
-    // Fade out near the bottom
-    if (p.y > confettiCanvas.height * 0.85) {
-      p.opacity = Math.max(0, 1 - (p.y - confettiCanvas.height * 0.85) / (confettiCanvas.height * 0.15));
+    // Stagger start
+    if (!p.started) {
+      p.delay -= dt;
+      if (p.delay > 0) {
+        p.mesh.visible = false;
+        continue;
+      }
+      p.started = true;
+      p.mesh.visible = true;
     }
 
-    if (p.y < confettiCanvas.height + 50 && p.opacity > 0) {
-      allDone = false;
+    // Gravity
+    p.vy -= 2.5 * dt; // gravity acceleration
+
+    // Update position — mostly straight down
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.mesh.position.z += p.vz * dt;
+
+    // Gentle tumble rotation while falling
+    p.mesh.rotation.x += p.rotSpeed.x * dt;
+    p.mesh.rotation.y += p.rotSpeed.y * dt;
+    p.mesh.rotation.z += p.rotSpeed.z * dt;
+
+    // Land on surface
+    if (p.mesh.position.y <= p.landY) {
+      p.mesh.position.y = p.landY;
+      p.landed = true;
+      // Flatten rotation to lie on surface
+      p.mesh.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+      p.mesh.rotation.z = Math.random() * Math.PI * 2;
     }
-
-    confettiCtx.save();
-    confettiCtx.translate(p.x, p.y);
-    confettiCtx.rotate(p.rotation);
-    confettiCtx.globalAlpha = p.opacity;
-    confettiCtx.fillStyle = p.color;
-
-    if (p.shape === 'circle') {
-      confettiCtx.beginPath();
-      confettiCtx.ellipse(0, 0, drawWidth / 2, p.height / 2, 0, 0, Math.PI * 2);
-      confettiCtx.fill();
-    } else {
-      confettiCtx.fillRect(-drawWidth / 2, -p.height / 2, drawWidth, p.height);
-    }
-
-    confettiCtx.restore();
   }
+}
 
-  if (allDone) {
-    confettiActive = false;
-    confettiParticles = [];
-    confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+function clearConfetti3D() {
+  for (const p of confetti3D) {
+    confettiGroup.remove(p.mesh);
+    p.mesh.geometry.dispose();
+    p.mesh.material.dispose();
   }
+  confetti3D.length = 0;
+  confettiTriggered = false;
 }
 
 // ── Animation loop ──
 const clock = new THREE.Clock();
+let lastFrameTime = 0;
 
 function animate() {
   requestAnimationFrame(animate);
@@ -1376,8 +1381,12 @@ function animate() {
     }
   }
 
-  // Update confetti overlay
-  updateConfetti();
+  // Update 3D confetti
+  const dt = elapsed - lastFrameTime;
+  lastFrameTime = elapsed;
+  if (confetti3D.length > 0) {
+    updateConfetti3D(Math.min(dt, 0.05), elapsed);
+  }
 
   renderer.render(scene, camera);
 }
