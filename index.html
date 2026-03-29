@@ -93,7 +93,7 @@ scene.background = new THREE.Color(0x1a1a2e);
 scene.fog = new THREE.FogExp2(0x1a1a2e, 0.015);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 6, 10);
+camera.position.set(0, 9, 8);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -110,7 +110,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.minDistance = 4;
 controls.maxDistance = 20;
-controls.target.set(0, 2, 0);
+controls.target.set(0, 2.5, 0);
 
 // ── Lighting ──
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
@@ -140,14 +140,40 @@ const cakeSideMaterial = new THREE.MeshStandardMaterial({
 });
 
 // ── Platform / Table ──
-const tableGeo = new THREE.CylinderGeometry(6, 6, 0.2, 64);
-const tableMat = new THREE.MeshStandardMaterial({ color: 0xc9a84c, roughness: 0.3, metalness: 0.6 });
-const table = new THREE.Mesh(tableGeo, tableMat);
-table.position.y = -0.1;
+// ── Silver platter ──
+const silverMat = new THREE.MeshStandardMaterial({
+  color: 0xd0d0d8,
+  roughness: 0.12,
+  metalness: 0.85,
+});
+
+// Main platter surface
+const tableGeo = new THREE.CylinderGeometry(6, 6, 0.15, 64);
+const table = new THREE.Mesh(tableGeo, silverMat);
+table.position.y = -0.075;
 table.receiveShadow = true;
 scene.add(table);
 
-// Cake plate
+// Raised ridge around the edge (outer rim)
+const ridgeOuterGeo = new THREE.TorusGeometry(6.0, 0.1, 12, 64);
+const ridgeOuter = new THREE.Mesh(ridgeOuterGeo, silverMat);
+ridgeOuter.position.y = 0.0;
+ridgeOuter.rotation.x = Math.PI / 2;
+scene.add(ridgeOuter);
+
+// Inner decorative ridge
+const ridgeInnerGeo = new THREE.TorusGeometry(5.7, 0.05, 10, 64);
+const ridgeInnerMat = new THREE.MeshStandardMaterial({
+  color: 0xe0e0e8,
+  roughness: 0.08,
+  metalness: 0.9,
+});
+const ridgeInner = new THREE.Mesh(ridgeInnerGeo, ridgeInnerMat);
+ridgeInner.position.y = 0.02;
+ridgeInner.rotation.x = Math.PI / 2;
+scene.add(ridgeInner);
+
+// Cake plate (sits on top of platter)
 const plateGeo = new THREE.CylinderGeometry(3.8, 4, 0.15, 64);
 const plateMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.2, metalness: 0.1 });
 const plate = new THREE.Mesh(plateGeo, plateMat);
@@ -288,6 +314,149 @@ scrollPositions.forEach(({ angle, radius, spin }) => {
   trayDecoGroup.add(scroll);
 });
 
+// ── Champagne flutes on the platter ──
+const glassMat = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  roughness: 0.05,
+  metalness: 0.0,
+  transmission: 0.85,
+  thickness: 0.3,
+  ior: 1.5,
+});
+const goldStemMat = new THREE.MeshStandardMaterial({
+  color: 0xd4a843,
+  roughness: 0.2,
+  metalness: 0.7,
+});
+
+function createChampagneFlute() {
+  const fluteGroup = new THREE.Group();
+
+  // Base (flat disc)
+  const baseGeo = new THREE.CylinderGeometry(0.15, 0.16, 0.03, 16);
+  const base = new THREE.Mesh(baseGeo, goldStemMat);
+  base.position.y = 0.015;
+  fluteGroup.add(base);
+
+  // Stem (thin cylinder)
+  const stemGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8);
+  const stem = new THREE.Mesh(stemGeo, goldStemMat);
+  stem.position.y = 0.255;
+  fluteGroup.add(stem);
+
+  // Bowl (tapered cylinder, wider at top)
+  const bowlGeo = new THREE.CylinderGeometry(0.12, 0.06, 0.35, 16, 1, true);
+  const bowl = new THREE.Mesh(bowlGeo, glassMat);
+  bowl.position.y = 0.655;
+  fluteGroup.add(bowl);
+
+  // Champagne liquid inside (slightly smaller, golden)
+  const liquidMat = new THREE.MeshStandardMaterial({
+    color: 0xf5d678,
+    roughness: 0.1,
+    metalness: 0.3,
+    transparent: true,
+    opacity: 0.7,
+  });
+  const liquidGeo = new THREE.CylinderGeometry(0.1, 0.05, 0.25, 16);
+  const liquid = new THREE.Mesh(liquidGeo, liquidMat);
+  liquid.position.y = 0.61;
+  fluteGroup.add(liquid);
+
+  return fluteGroup;
+}
+
+// Place 6 champagne flutes evenly around the platter
+for (let i = 0; i < 6; i++) {
+  const angle = (i / 6) * Math.PI * 2 + 0.15; // offset slightly from caps
+  const radius = 5.5;
+  const flute = createChampagneFlute();
+  flute.position.set(
+    Math.cos(angle) * radius,
+    0.0,
+    Math.sin(angle) * radius
+  );
+  flute.rotation.y = angle + Math.PI; // face inward toward cake
+  flute.castShadow = true;
+  trayDecoGroup.add(flute);
+}
+
+// ── Ivy / greenery garlands on the platter ──
+const ivyLeafMat = new THREE.MeshStandardMaterial({
+  color: 0x2d5a27,
+  roughness: 0.6,
+  metalness: 0.0,
+  side: THREE.DoubleSide,
+});
+const ivyDarkMat = new THREE.MeshStandardMaterial({
+  color: 0x1e4220,
+  roughness: 0.7,
+  metalness: 0.0,
+  side: THREE.DoubleSide,
+});
+const vineMat = new THREE.MeshStandardMaterial({
+  color: 0x3a6b35,
+  roughness: 0.8,
+});
+
+// Create ivy vine segments around the cake base
+for (let i = 0; i < 24; i++) {
+  const angle = (i / 24) * Math.PI * 2;
+  const radius = 4.2 + Math.sin(i * 2.7) * 0.3; // wavy path
+
+  // Vine segment (thin cylinder along the surface)
+  const vineGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6);
+  const vine = new THREE.Mesh(vineGeo, vineMat);
+  vine.position.set(
+    Math.cos(angle) * radius,
+    0.04,
+    Math.sin(angle) * radius
+  );
+  vine.rotation.y = -angle;
+  vine.rotation.z = Math.PI / 2;
+  trayDecoGroup.add(vine);
+
+  // Ivy leaves (small diamond-shaped planes) branching off the vine
+  const numLeaves = 2 + Math.floor(Math.random() * 2);
+  for (let j = 0; j < numLeaves; j++) {
+    const leafAngle = angle + (Math.random() - 0.5) * 0.3;
+    const leafRadius = radius + (Math.random() - 0.5) * 0.4;
+    const leafSize = 0.12 + Math.random() * 0.08;
+    const leafGeo = new THREE.CircleGeometry(leafSize, 5);
+    const mat = Math.random() > 0.4 ? ivyLeafMat : ivyDarkMat;
+    const leaf = new THREE.Mesh(leafGeo, mat);
+    leaf.position.set(
+      Math.cos(leafAngle) * leafRadius,
+      0.05 + Math.random() * 0.03,
+      Math.sin(leafAngle) * leafRadius
+    );
+    leaf.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+    leaf.rotation.z = Math.random() * Math.PI;
+    trayDecoGroup.add(leaf);
+  }
+}
+
+// Add some trailing ivy tendrils spreading outward
+for (let i = 0; i < 16; i++) {
+  const angle = (i / 16) * Math.PI * 2 + 0.2;
+  for (let j = 0; j < 4; j++) {
+    const radius = 4.5 + j * 0.35;
+    const leafSize = 0.1 + Math.random() * 0.06;
+    const leafGeo = new THREE.CircleGeometry(leafSize, 5);
+    const mat = Math.random() > 0.5 ? ivyLeafMat : ivyDarkMat;
+    const leaf = new THREE.Mesh(leafGeo, mat);
+    const jitter = (Math.random() - 0.5) * 0.2;
+    leaf.position.set(
+      Math.cos(angle + jitter) * radius,
+      0.04,
+      Math.sin(angle + jitter) * radius
+    );
+    leaf.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+    leaf.rotation.z = Math.random() * Math.PI;
+    trayDecoGroup.add(leaf);
+  }
+}
+
 // ── Cake layers ──
 const cakeGroup = new THREE.Group();
 scene.add(cakeGroup);
@@ -422,26 +591,28 @@ const logoGroup = new THREE.Group();
 cakeGroup.add(logoGroup);
 
 // aspect = image width / image height (from cropped logo files)
+// Ordered so Michigan is at index 3 (3 o'clock) and Maryland at index 9 (9 o'clock)
+// scale: per-school size multiplier (1.0 = default, Michigan gets 1.5 for prominence)
 const schools = [
-  { name: 'Michigan', file: 'logos/michigan.png', aspect: 1.0 },
-  { name: 'Maryland', file: 'logos/maryland.png', aspect: 0.91 },
-  { name: 'Penn State', file: 'logos/pennstate.png', aspect: 5.55 },
-  { name: 'Rutgers', file: 'logos/rutgers.png', aspect: 1.14 },
-  { name: 'UConn', file: 'logos/uconn.png', aspect: 4.63 },
-  { name: 'Syracuse', file: 'logos/syracuse.png', aspect: 0.74 },
-  { name: 'UMass', file: 'logos/umass.png', aspect: 1.22 },
-  { name: 'Boston U', file: 'logos/boston.png', aspect: 1.37 },
-  { name: 'LMU', file: 'logos/loyola.png', aspect: 1.71 },
-  { name: 'Delaware', file: 'logos/delaware.png', aspect: 3.69 },
-  { name: 'Vermont', file: 'logos/vermont.png', aspect: 1.02 },
-  { name: 'Hawaii', file: 'logos/hawaii.png', aspect: 1.32 },
+  { name: 'Penn State', file: 'logos/pennstate.png', aspect: 5.55, scale: 0.55 },  // 12 o'clock (wide text, shrink)
+  { name: 'Rutgers', file: 'logos/rutgers.png', aspect: 1.14, scale: 0.85 },       // 1 o'clock
+  { name: 'UConn', file: 'logos/uconn.png', aspect: 4.63, scale: 0.55 },           // 2 o'clock (wide text, shrink)
+  { name: 'Michigan', file: 'logos/michigan.png', aspect: 1.0, scale: 1.725 },     // 3 o'clock ★ (prominent)
+  { name: 'Syracuse', file: 'logos/syracuse.png', aspect: 0.74, scale: 0.85 },     // 4 o'clock
+  { name: 'UMass', file: 'logos/umass.png', aspect: 1.22, scale: 0.85 },           // 5 o'clock
+  { name: 'Boston U', file: 'logos/boston.png', aspect: 1.37, scale: 0.85 },        // 6 o'clock
+  { name: 'LMU', file: 'logos/loyola.png', aspect: 1.71, scale: 0.75 },            // 7 o'clock
+  { name: 'Delaware', file: 'logos/delaware.png', aspect: 3.69, scale: 0.55 },     // 8 o'clock (wide text, shrink)
+  { name: 'Maryland', file: 'logos/maryland.png', aspect: 0.91, scale: 1.3225 },   // 9 o'clock ★
+  { name: 'Vermont', file: 'logos/vermont.png', aspect: 1.02, scale: 0.85 },       // 10 o'clock
+  { name: 'Hawaii', file: 'logos/hawaii.png', aspect: 1.32, scale: 0.85 },         // 11 o'clock
 ];
 
-// School colors for fallback
+// School colors for fallback (matching reordered schools)
 const schoolColors = [
-  '#00274C', '#E21833', '#041E42', '#CC0033',
-  '#000E2F', '#F76900', '#881c1c', '#CC0000',
-  '#8C2332', '#00539F', '#005710', '#024731',
+  '#041E42', '#CC0033', '#000E2F', '#00274C',
+  '#F76900', '#881c1c', '#CC0000', '#8C2332',
+  '#00539F', '#E21833', '#005710', '#024731',
 ];
 
 const logoMeshes = [];
@@ -452,9 +623,11 @@ schools.forEach((school, i) => {
   const x = Math.cos(angle) * radius;
   const z = Math.sin(angle) * radius;
 
-  // Size logos proportionally: same height, width based on aspect ratio
-  const topHeight = 0.6;
-  const ar = Math.min(school.aspect, 2.5); // cap width for very wide logos
+  // Size logos proportionally with per-school scale
+  const baseHeight = 0.55;
+  const s = school.scale || 1.0;
+  const ar = Math.min(school.aspect, 2.0); // tighter cap for wide logos
+  const topHeight = baseHeight * s;
   const topWidth = topHeight * ar;
   const logoGeo = new THREE.PlaneGeometry(topWidth, topHeight);
 
@@ -513,8 +686,9 @@ schools.forEach((school, i) => {
   logoMeshes.push(logoMesh);
 
   // Logo on the outside wall of the top cake layer
-  const wallHeight = 0.5;
-  const wallAr = Math.min(school.aspect, 2.5);
+  const wallBaseHeight = 0.45;
+  const wallAr = Math.min(school.aspect, 2.0);
+  const wallHeight = wallBaseHeight * s;
   const wallWidth = wallHeight * wallAr;
   const wallLogoGeo = new THREE.PlaneGeometry(wallWidth, wallHeight);
   const wallLogoMat = new THREE.MeshStandardMaterial({
@@ -832,7 +1006,7 @@ cakeGroup.add(ribbonEdgeBottom);
 
 // ── Confetti sprinkles on bottom cake side ──
 const confettiColors = [0xff4081, 0x7c4dff, 0x00bcd4, 0xffab00, 0x76ff03, 0xff6e40, 0x536dfe];
-for (let i = 0; i < 60; i++) {
+for (let i = 0; i < 150; i++) {
   const angle = Math.random() * Math.PI * 2;
   // Random y between bottom and top of cake, avoiding the ribbon band zone
   let y;
