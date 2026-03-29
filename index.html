@@ -67,20 +67,25 @@
   #reset-btn:hover { background: rgba(255,255,255,0.3); }
   #fuse-instructions {
     position: fixed;
-    bottom: 20px;
+    bottom: 60px;
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
-    background: rgba(0,0,0,0.5);
-    padding: 12px 24px;
-    border-radius: 20px;
-    font-size: 16px;
+    background: linear-gradient(135deg, #cc2222, #ff4444);
+    padding: 14px 32px;
+    border-radius: 25px;
+    font-size: 18px;
     font-weight: bold;
-    pointer-events: none;
+    font-family: 'Georgia', serif;
+    pointer-events: auto;
+    cursor: pointer;
     text-align: center;
     display: none;
+    border: none;
+    box-shadow: 0 4px 15px rgba(204,34,34,0.4);
     transition: opacity 0.5s, transform 0.3s;
   }
+  #fuse-instructions:hover { transform: translateX(-50%) scale(1.05); box-shadow: 0 6px 20px rgba(204,34,34,0.6); }
   #white-flash {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -114,9 +119,15 @@
 <div id="instructions">Drag to rotate &bull; Scroll to zoom &bull; Click the candle to light it</div>
 <button id="light-btn" onclick="startBurn()">Light the Candle</button>
 <button id="reset-btn" onclick="resetCake()">Reset</button>
-<div id="fuse-instructions">Tap the fuse!</div>
+<button id="fuse-instructions" onclick="window.lightTheFuse && window.lightTheFuse()">Light the Fuse!</button>
 <div id="white-flash"></div>
-<div id="congrats-overlay"><span id="congrats-text"></span><br><span id="goblue-text" style="font-size:36px"></span></div>
+<div id="congrats-overlay">
+  <div style="display:flex; align-items:center; justify-content:center; gap:20px;">
+    <img src="logos/michigan.png" style="height:80px; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
+    <div><span id="congrats-text"></span><br><span id="goblue-text" style="font-size:36px"></span></div>
+    <img src="logos/michigan.png" style="height:80px; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
+  </div>
+</div>
 <script>
 // Alternating blue/yellow letters
 function colorLetters(text, elId) {
@@ -1253,6 +1264,7 @@ renderer.domElement.addEventListener('pointerup', (event) => {
 });
 
 window.startBurn = startBurn;
+window.lightTheFuse = () => startWickBurn();
 function startBurn() {
   isBurning = true;
   burnStartTime = performance.now() / 1000;
@@ -1777,47 +1789,126 @@ let shakeAmplitude = 0;
 let shakeDecay = 0;
 let shakeTime = 0;
 
-// ── Block-M Monument ──
+// ── Michigan Cube (Endover Cube) ──
+// The iconic sculpture on U-M campus: a dark steel cube balanced on one vertex, rotating
+// Structure: monumentGroup (translate) → cubeTiltGroup (static tilt to balance on vertex)
+//            → cubeSpinGroup (spins around body diagonal = world Y after tilt)
 const monumentGroup = new THREE.Group();
 monumentGroup.visible = false;
-monumentGroup.position.y = -3; // starts below scene
+monumentGroup.position.y = -5; // starts below scene
 scene.add(monumentGroup);
 
-// Pedestal
-const pedestalGeo = new THREE.BoxGeometry(2.5, 0.4, 1.5);
-const pedestalMat = new THREE.MeshStandardMaterial({ color: 0x00274C, roughness: 0.3, metalness: 0.4 });
-const pedestal = new THREE.Mesh(pedestalGeo, pedestalMat);
-pedestal.position.y = 0.2;
-pedestal.castShadow = true;
-monumentGroup.add(pedestal);
+// Tilt group: rotates so one vertex points straight down
+// 45° on Z, then arctan(1/√2) on X balances perfectly on one vertex
+const cubeTiltGroup = new THREE.Group();
+cubeTiltGroup.rotation.z = Math.PI / 4;
+cubeTiltGroup.rotation.x = Math.atan(1 / Math.SQRT2);
+monumentGroup.add(cubeTiltGroup);
 
-// Gold trim on pedestal
-const trimGeo = new THREE.BoxGeometry(2.6, 0.06, 1.6);
-const trimMat = new THREE.MeshStandardMaterial({ color: 0xFFCB05, roughness: 0.2, metalness: 0.7 });
-const trim1 = new THREE.Mesh(trimGeo, trimMat);
-trim1.position.y = 0.41;
-monumentGroup.add(trim1);
-const trim2 = trim1.clone();
-trim2.position.y = 0.0;
-monumentGroup.add(trim2);
+// Spin group: rotates around Y axis (which is the body diagonal after tilt)
+// This makes the bottom vertex stay fixed while the cube spins
+const cubeSpinGroup = new THREE.Group();
+cubeTiltGroup.add(cubeSpinGroup);
 
-// Michigan logo on pedestal front (large)
-const mLogoGeo = new THREE.PlaneGeometry(2.0, 2.0);
-const mLogoMat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide });
-textureLoader.load('logos/michigan.png', (tex) => {
-  tex.colorSpace = THREE.SRGBColorSpace;
-  mLogoMat.map = tex;
-  mLogoMat.needsUpdate = true;
+const cubeSize = 2.4;
+
+// Dark weathered steel material — always visible, never pure black
+const cubeMat = new THREE.MeshStandardMaterial({
+  color: 0x4a4a4a,
+  roughness: 0.65,
+  metalness: 0.8,
+  emissive: new THREE.Color(0x2a2a2a), // self-illumination so it's never pure black
 });
-const mLogoMesh = new THREE.Mesh(mLogoGeo, mLogoMat);
-mLogoMesh.position.set(0, 1.5, 0.76);
-monumentGroup.add(mLogoMesh);
-// Back logo
-const mLogoBack = mLogoMesh.clone();
-mLogoBack.position.z = -0.76;
-mLogoBack.rotation.y = Math.PI;
-mLogoBack.material = mLogoMat;
-monumentGroup.add(mLogoBack);
+// Channel/gap material between panels (dark recessed grooves)
+const channelMat = new THREE.MeshStandardMaterial({
+  color: 0x1a1a1a,
+  roughness: 0.95,
+  metalness: 0.3,
+  emissive: new THREE.Color(0x0a0a0a),
+});
+
+// Build the cube from 8 individual panels per face (2x2 grid with gaps)
+// This matches the real Endover Cube's appearance
+const panelSize = cubeSize / 2 - 0.04; // each panel slightly smaller than half
+const gapWidth = 0.06; // channel between panels
+const panelDepth = 0.08; // panels are slightly recessed from edges
+
+function buildCubeFace(group, faceAxis, faceSign) {
+  // Each face has a 2x2 grid of panels
+  const offsets = [-cubeSize / 4, cubeSize / 4]; // center positions of each panel
+
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 2; c++) {
+      let geo, mesh;
+      const p = panelSize;
+
+      if (faceAxis === 'z') {
+        geo = new THREE.BoxGeometry(p, p, panelDepth);
+        mesh = new THREE.Mesh(geo, cubeMat);
+        mesh.position.set(offsets[c], offsets[r], faceSign * (cubeSize / 2 - panelDepth / 2));
+      } else if (faceAxis === 'x') {
+        geo = new THREE.BoxGeometry(panelDepth, p, p);
+        mesh = new THREE.Mesh(geo, cubeMat);
+        mesh.position.set(faceSign * (cubeSize / 2 - panelDepth / 2), offsets[r], offsets[c]);
+      } else {
+        geo = new THREE.BoxGeometry(p, panelDepth, p);
+        mesh = new THREE.Mesh(geo, cubeMat);
+        mesh.position.set(offsets[c], faceSign * (cubeSize / 2 - panelDepth / 2), offsets[r]);
+      }
+      mesh.castShadow = true;
+      group.add(mesh);
+    }
+  }
+}
+
+// Inner cube body (slightly smaller, visible through gaps as the dark channel)
+const innerCubeGeo = new THREE.BoxGeometry(cubeSize - 0.12, cubeSize - 0.12, cubeSize - 0.12);
+const innerCube = new THREE.Mesh(innerCubeGeo, channelMat);
+cubeSpinGroup.add(innerCube);
+
+// Build all 6 faces with paneled surface
+buildCubeFace(cubeSpinGroup, 'z', 1);   // front
+buildCubeFace(cubeSpinGroup, 'z', -1);  // back
+buildCubeFace(cubeSpinGroup, 'x', 1);   // right
+buildCubeFace(cubeSpinGroup, 'x', -1);  // left
+buildCubeFace(cubeSpinGroup, 'y', 1);   // top
+buildCubeFace(cubeSpinGroup, 'y', -1);  // bottom
+
+// Edge frame pieces (the raised edges between faces)
+const edgeLen = cubeSize;
+const edgeThick = 0.06;
+const edgePositions = [
+  // 12 edges of a cube
+  { pos: [0, cubeSize/2, cubeSize/2], size: [edgeLen, edgeThick, edgeThick] },
+  { pos: [0, -cubeSize/2, cubeSize/2], size: [edgeLen, edgeThick, edgeThick] },
+  { pos: [0, cubeSize/2, -cubeSize/2], size: [edgeLen, edgeThick, edgeThick] },
+  { pos: [0, -cubeSize/2, -cubeSize/2], size: [edgeLen, edgeThick, edgeThick] },
+  { pos: [cubeSize/2, 0, cubeSize/2], size: [edgeThick, edgeLen, edgeThick] },
+  { pos: [-cubeSize/2, 0, cubeSize/2], size: [edgeThick, edgeLen, edgeThick] },
+  { pos: [cubeSize/2, 0, -cubeSize/2], size: [edgeThick, edgeLen, edgeThick] },
+  { pos: [-cubeSize/2, 0, -cubeSize/2], size: [edgeThick, edgeLen, edgeThick] },
+  { pos: [cubeSize/2, cubeSize/2, 0], size: [edgeThick, edgeThick, edgeLen] },
+  { pos: [-cubeSize/2, cubeSize/2, 0], size: [edgeThick, edgeThick, edgeLen] },
+  { pos: [cubeSize/2, -cubeSize/2, 0], size: [edgeThick, edgeThick, edgeLen] },
+  { pos: [-cubeSize/2, -cubeSize/2, 0], size: [edgeThick, edgeThick, edgeLen] },
+];
+edgePositions.forEach(({ pos, size }) => {
+  const geo = new THREE.BoxGeometry(...size);
+  const mesh = new THREE.Mesh(geo, cubeMat);
+  mesh.position.set(...pos);
+  cubeSpinGroup.add(mesh);
+});
+
+// The bottom vertex when balanced is at y = -cubeSize * sqrt(3)/2 ≈ -2.08
+const cubeVertexOffset = cubeSize * Math.sqrt(3) / 2;
+
+// Subtle ground shadow disc (attached to tilt group so it stays under the vertex)
+const shadowGeo = new THREE.CircleGeometry(0.4, 16);
+const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 });
+const shadowDisc = new THREE.Mesh(shadowGeo, shadowMat);
+shadowDisc.rotation.x = -Math.PI / 2;
+shadowDisc.position.y = -cubeVertexOffset;
+monumentGroup.add(shadowDisc); // on monumentGroup so it doesn't spin
 
 
 // ── Balloons ──
@@ -2245,7 +2336,7 @@ function updatePhase2(elapsed, dt) {
     const rT = now - revealStart;
 
     // Spotlight fades in (bright for dramatic reveal)
-    spotLight.intensity = Math.min(15, rT * 15);
+    spotLight.intensity = Math.min(20, rT * 20);
 
     // Bring lights back up so everything is clearly visible
     const lightT = Math.min(1, rT / 1.5);
@@ -2260,7 +2351,8 @@ function updatePhase2(elapsed, dt) {
     // Monument rises from y=-3 to y=0 over 1.2 seconds
     const riseT = Math.min(1, rT / 1.2);
     const eased = 1 - Math.pow(1 - riseT, 3); // ease-out cubic
-    monumentGroup.position.y = -3 + 3 * eased;
+    // Rise so the cube's bottom vertex lands near y=0, center of cube at y=cubeVertexOffset
+    monumentGroup.position.y = -5 + (cubeVertexOffset + 5) * eased;
 
     // After 1.5s, transition to celebrating
     if (rT > 2.0) {
@@ -2289,8 +2381,8 @@ function updatePhase2(elapsed, dt) {
     updateBalloons(dt, elapsed);
     updatePhase2Confetti(dt);
 
-    // Gentle monument rotation
-    monumentGroup.rotation.y += 0.1 * dt;
+    // Cube spins on its balanced vertex — bottom point stays fixed
+    cubeSpinGroup.rotation.y += 0.4 * dt;
 
     return;
   }
@@ -2313,8 +2405,7 @@ function resetPhase2() {
   clearPhase2Confetti();
 
   monumentGroup.visible = false;
-  monumentGroup.position.y = -3;
-  monumentGroup.rotation.y = 0;
+  monumentGroup.position.y = -5;
 
 
   shakeAmplitude = 0;
