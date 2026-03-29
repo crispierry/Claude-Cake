@@ -1204,8 +1204,8 @@ flameGroup.position.y = 1.25;
 candleGroup.add(flameGroup);
 
 // Outer flame
-const outerFlameGeo = new THREE.SphereGeometry(0.12, 16, 16);
-outerFlameGeo.scale(1, 2.2, 1);
+const outerFlameGeo = new THREE.SphereGeometry(0.07, 16, 16);
+outerFlameGeo.scale(1, 2.0, 1);
 const outerFlameMat = new THREE.MeshBasicMaterial({
   color: 0xff6600,
   transparent: true,
@@ -1215,8 +1215,8 @@ const outerFlame = new THREE.Mesh(outerFlameGeo, outerFlameMat);
 flameGroup.add(outerFlame);
 
 // Inner flame
-const innerFlameGeo = new THREE.SphereGeometry(0.06, 16, 16);
-innerFlameGeo.scale(1, 2.0, 1);
+const innerFlameGeo = new THREE.SphereGeometry(0.035, 16, 16);
+innerFlameGeo.scale(1, 1.8, 1);
 const innerFlameMat = new THREE.MeshBasicMaterial({
   color: 0xffff00,
   transparent: true,
