@@ -112,6 +112,86 @@
     line-height: 1.3;
     transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s;
   }
+  #password-gate {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    backdrop-filter: blur(8px);
+  }
+  #password-gate.active { display: flex; }
+  #password-box {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 36px 40px;
+    text-align: center;
+    max-width: 360px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  #password-box h2 {
+    color: #fff;
+    font-family: 'Georgia', serif;
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  #password-box p {
+    color: rgba(255,255,255,0.6);
+    font-family: 'Georgia', serif;
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  #password-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    font-size: 16px;
+    font-family: 'Georgia', serif;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+  #password-input:focus { border-color: rgba(255,180,0,0.6); }
+  #password-input.shake {
+    animation: shake 0.4s ease-in-out;
+    border-color: #ff4444;
+  }
+  #password-submit {
+    margin-top: 16px;
+    background: linear-gradient(135deg, #ff6600, #ff9900);
+    color: #fff;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 16px;
+    font-family: 'Georgia', serif;
+    box-shadow: 0 4px 15px rgba(255,102,0,0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  #password-submit:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(255,102,0,0.6); }
+  #password-error {
+    color: #ff6666;
+    font-size: 13px;
+    font-family: 'Georgia', serif;
+    margin-top: 10px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
 </style>
 </head>
 <body>
@@ -122,6 +202,16 @@
 <button id="reset-btn" onclick="resetCake()">Reset</button>
 <button id="fuse-instructions" onclick="window.lightTheFuse && window.lightTheFuse()">Light the Fuse!</button>
 <div id="white-flash"></div>
+<div id="password-gate">
+  <div id="password-box">
+    <h2>Locked Content</h2>
+    <p>Enter the password to continue</p>
+    <input type="password" id="password-input" placeholder="Password" autocomplete="off">
+    <br>
+    <button id="password-submit">Unlock</button>
+    <div id="password-error">Incorrect password</div>
+  </div>
+</div>
 <div id="congrats-overlay">
   <div style="display:flex; align-items:center; justify-content:center; gap:clamp(12px, 2vw, 24px); max-width:100vw; padding:0 10px; box-sizing:border-box;">
     <img src="logos/michigan.png" id="congrats-logo-left" style="height:172px; flex-shrink:0; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
@@ -1296,9 +1386,9 @@ function startBurn() {
   document.getElementById('instructions').style.opacity = '0';
   document.getElementById('light-btn').style.display = 'none';
 
-  // Phase 2 triggers after Phase 1 confetti settles (~2s after burn completes)
+  // Phase 2 triggers after password gate
   setTimeout(() => {
-    enterPhase2();
+    showPasswordGate();
   }, burnDuration * 1000 + 2000);
 }
 
@@ -2020,6 +2110,36 @@ function clearBalloons() {
   }
   balloons.length = 0;
 }
+
+// ── Password gate for Phase 2 ──
+function showPasswordGate() {
+  const gate = document.getElementById('password-gate');
+  gate.classList.add('active');
+  const input = document.getElementById('password-input');
+  input.value = '';
+  input.focus();
+  document.getElementById('password-error').style.opacity = '0';
+}
+
+function tryUnlockPhase2() {
+  const input = document.getElementById('password-input');
+  const errorEl = document.getElementById('password-error');
+  if (input.value === 'GoBlueTati2030') {
+    document.getElementById('password-gate').classList.remove('active');
+    enterPhase2();
+  } else {
+    input.classList.add('shake');
+    errorEl.style.opacity = '1';
+    setTimeout(() => { input.classList.remove('shake'); }, 400);
+    input.value = '';
+    input.focus();
+  }
+}
+
+document.getElementById('password-submit').addEventListener('click', tryUnlockPhase2);
+document.getElementById('password-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') tryUnlockPhase2();
+});
 
 // ── Phase 2 Michigan confetti ──
 const phase2Confetti = [];
