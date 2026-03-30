@@ -28,13 +28,24 @@ The experience has two phases:
 - **Three.js** (v0.163.0) — 3D rendering, lighting, materials, OrbitControls
 - **Custom GLSL Shaders** — Progressive burn, blur-to-focus reveal, wick burn
 - **Web Audio API** — Fire crackling, fight songs, explosion boom
-- **Pure HTML/CSS/JS** — Single-file architecture, no build step
+- **Pure HTML/CSS/JS** — Modular static app, no build step
 - **Netlify** — Hosting and deployment
 
 ## Project Structure
 
 ```
-├── index.html              # Entire application (3,000+ lines)
+├── index.html               # Shell markup, accessibility affordances, fallback UI
+├── styles.css               # Shared UI and overlay styles
+├── app/
+│   ├── bootstrap.js         # Browser capability checks + safe startup
+│   ├── shared-ui.js         # Accessible controls, live regions, shell helpers
+│   ├── site-config.js       # Event copy, school metadata, audio/logo asset map
+│   └── cake-experience.js   # Three.js scene, shaders, audio, and state machine
+├── scripts/
+│   └── verify.mjs           # Repo-owned publish checks
+├── vendor/
+│   └── three/               # Local Three.js runtime modules for reproducible deploys
+├── michigan-fight.mp3       # Michigan fight song audio
 ├── maryland-fight.mp3       # Maryland fight song audio
 ├── logos/                   # School logo PNGs (12 schools)
 │   ├── michigan.png
@@ -50,8 +61,9 @@ The experience has two phases:
 │   ├── vermont.png
 │   ├── hawaii.png
 │   └── placeholder.png
-├── .gitignore
-└── .netlify/                # Netlify deployment config
+├── netlify.toml             # Versioned Netlify publish config
+├── package.json             # Verification script entrypoint
+└── .gitignore
 ```
 
 ## Running Locally
@@ -63,9 +75,11 @@ No build step required. Just serve the files:
 npx serve .
 # or
 python3 -m http.server 8000
+# release verification
+npm run verify
 ```
 
-Open `http://localhost:8000` in a browser. Audio requires a user gesture (click) to initialize.
+Open `http://localhost:8000` in a browser. Audio requires a user gesture to initialize.
 
 ## Schools Featured
 
@@ -79,4 +93,6 @@ Open `http://localhost:8000` in a browser. Audio requires a user gesture (click)
 
 - Desktop Chrome, Firefox, Safari, Edge (WebGL required)
 - Mobile Safari and Chrome (responsive camera, touch controls, safe-area-inset support)
+- Graceful fallback screen when WebGL or modern modules are unavailable
+- Keyboard-accessible primary actions and a button-based school picker alongside the 3D scene
 - Pixel ratio capped at 2x for performance on high-DPI screens
