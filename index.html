@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Celebration Cake</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { overflow: hidden; background: #f5f0eb; font-family: 'Georgia', serif; }
-  canvas { display: block; }
+  body { overflow: hidden; background: #f5f0eb; font-family: 'Georgia', serif; position: fixed; inset: 0; width: 100%; height: 100%; }
+  canvas { display: block; touch-action: none; }
   #instructions {
     position: fixed;
-    bottom: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
@@ -24,7 +24,7 @@
   }
   #title {
     position: fixed;
-    top: 20px;
+    top: calc(20px + env(safe-area-inset-top, 0px));
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
@@ -35,7 +35,7 @@
   }
   #light-btn {
     position: fixed;
-    bottom: 60px;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     background: linear-gradient(135deg, #ff6600, #ff9900);
@@ -52,8 +52,8 @@
   #light-btn:hover { transform: translateX(-50%) scale(1.05); box-shadow: 0 6px 20px rgba(255,102,0,0.6); }
   #reset-btn {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    right: calc(20px + env(safe-area-inset-right, 0px));
     background: rgba(255,255,255,0.15);
     color: #fff;
     border: 1px solid rgba(255,255,255,0.3);
@@ -67,7 +67,7 @@
   #reset-btn:hover { background: rgba(255,255,255,0.3); }
   #fuse-instructions {
     position: fixed;
-    bottom: 60px;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
@@ -114,7 +114,7 @@
   }
   #logo-select-instructions {
     position: fixed;
-    bottom: 60px;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
@@ -140,7 +140,7 @@
 <button id="fuse-instructions" onclick="window.lightTheFuse && window.lightTheFuse()">Light the Fuse!</button>
 <div id="white-flash"></div>
 <div id="logo-select-instructions">Click a school logo on the cake!</div>
-<button id="audio-toggle" onclick="toggleFightSong()" style="display:none; position:fixed; bottom:20px; right:20px; z-index:10000; width:90px; height:90px; border-radius:50%; border:3px solid rgba(255,203,5,0.6); background:rgba(0,39,76,0.85); color:#FFCB05; font-size:36px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.5); backdrop-filter:blur(6px); transition:opacity 0.3s, transform 0.15s; -webkit-tap-highlight-color:transparent;">&#9208;</button>
+<button id="audio-toggle" onclick="toggleFightSong()" style="display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); right:calc(20px + env(safe-area-inset-right, 0px)); z-index:10000; width:90px; height:90px; border-radius:50%; border:3px solid rgba(255,203,5,0.6); background:rgba(0,39,76,0.95); color:#FFCB05; font-size:36px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.5); transition:opacity 0.3s, transform 0.15s; -webkit-tap-highlight-color:transparent;">&#9208;</button>
 <div id="congrats-overlay">
   <div style="display:flex; align-items:center; justify-content:center; gap:clamp(12px, 2vw, 24px); max-width:100vw; padding:0 10px; box-sizing:border-box;">
     <img src="logos/michigan.png" id="congrats-logo-left" style="height:172px; flex-shrink:0; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
@@ -177,11 +177,6 @@ function matchLogoHeight() {
     right.style.height = h;
   }
 }
-// Run after overlay becomes visible (MutationObserver watches display changes)
-new MutationObserver(() => {
-  const overlay = document.getElementById('congrats-overlay');
-  if (overlay && overlay.style.display !== 'none') matchLogoHeight();
-}).observe(document.getElementById('congrats-overlay'), { attributes: true, attributeFilter: ['style'] });
 window.addEventListener('resize', matchLogoHeight);
 </script>
 
@@ -1316,6 +1311,7 @@ let fireMasterVolume = 0;
 function startFireAudio() {
   try {
     fireAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (fireAudioCtx.state === 'suspended') fireAudioCtx.resume();
 
     // Quiet low rumble base (very subtle, not hissy)
     const bufferSize = fireAudioCtx.sampleRate * 2;
@@ -1406,6 +1402,7 @@ function stopFireAudio() {
 function playExplosionBoom() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
     // Low frequency boom - noise burst shaped with fast attack, slow decay
     const duration = 1.5;
     const sampleRate = ctx.sampleRate;
@@ -1711,6 +1708,7 @@ try {
 
 window.toggleFightSong = function() {
   if (!fightSong) return;
+  if (fireAudioCtx && fireAudioCtx.state === 'suspended') fireAudioCtx.resume();
   const btn = document.getElementById('audio-toggle');
   if (fightSong.paused) {
     fightSong.play().catch(() => {});
@@ -2808,6 +2806,7 @@ function updatePhase2(elapsed, dt) {
       // Show congratulations text
       const congrats = document.getElementById('congrats-overlay');
       congrats.style.display = 'block';
+      matchLogoHeight();
       setTimeout(() => { congrats.style.transform = 'scale(1)'; }, 50);
 
       // Show reset button
