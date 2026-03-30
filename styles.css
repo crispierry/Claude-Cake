@@ -189,11 +189,11 @@ canvas {
 }
 
 #congrats-overlay {
-  --base-congrats-size: clamp(28px, 5vw, 64px);
-  --congrats-logo-size: clamp(96px, 12vw, 168px);
-  --congrats-gap: clamp(12px, 1.8vw, 24px);
+  --base-congrats-size: clamp(34px, 5.2vw, 72px);
+  --congrats-logo-size: clamp(88px, 9vw, 144px);
+  --congrats-gap: clamp(12px, 1.6vw, 22px);
   position: fixed;
-  top: clamp(30px, 6vh, 72px);
+  top: clamp(18px, 3vh, 42px);
   left: 0;
   width: 100%;
   transform: scale(0);
@@ -231,22 +231,24 @@ canvas {
 #congrats-text-block {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: min(62vw, 980px);
+  max-width: min(62vw, 940px);
+  line-height: 1;
 }
 
 #tati-text {
-  font-size: clamp(28px, 0.7em, 44px);
+  font-size: clamp(44px, 1.04em, 88px);
   color: #fff;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  line-height: 0.95;
 }
 
-#congrats-text,
-#goblue-text {
-  font-size: 1em;
+#congrats-text {
+  font-size: 0.7em;
+  letter-spacing: 0.025em;
 }
 
 #goblue-text {
-  font-size: 0.9em;
+  font-size: 0.5em;
 }
 
 #congrats-overlay.compact {
@@ -264,6 +266,23 @@ canvas {
 
 #congrats-overlay.mobile-safari #congrats-text-block {
   max-width: min(92vw, 980px);
+}
+
+@media (min-width: 700px) and (min-height: 500px) {
+  #congrats-overlay {
+    --base-congrats-size: clamp(42px, 5.6vw, 82px);
+    --congrats-logo-size: clamp(92px, 9vw, 156px);
+    --congrats-gap: clamp(14px, 1.8vw, 26px);
+    top: clamp(16px, 2.6vh, 34px);
+  }
+
+  #congrats-text-block {
+    max-width: min(66vw, 980px);
+  }
+
+  #tati-text {
+    font-size: clamp(56px, 1.06em, 96px);
+  }
 }
 
 .fallback-panel {

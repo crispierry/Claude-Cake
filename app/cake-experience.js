@@ -70,6 +70,62 @@ renderer.toneMappingExposure = 1.2;
 const experienceHost = document.getElementById('experience-host') || document.body;
 experienceHost.appendChild(renderer.domElement);
 
+function createStudioEnvironmentMap() {
+  const envCanvas = document.createElement('canvas');
+  envCanvas.width = 1024;
+  envCanvas.height = 512;
+  const ctx = envCanvas.getContext('2d');
+
+  if (!ctx) return null;
+
+  const { width, height } = envCanvas;
+
+  const verticalGradient = ctx.createLinearGradient(0, 0, 0, height);
+  verticalGradient.addColorStop(0, '#fffdf8');
+  verticalGradient.addColorStop(0.18, '#f7efe3');
+  verticalGradient.addColorStop(0.45, '#e7e1de');
+  verticalGradient.addColorStop(0.75, '#d4d0cf');
+  verticalGradient.addColorStop(1, '#bdbabc');
+  ctx.fillStyle = verticalGradient;
+  ctx.fillRect(0, 0, width, height);
+
+  const bandGradient = ctx.createLinearGradient(0, 0, width, 0);
+  bandGradient.addColorStop(0, 'rgba(255,255,255,0)');
+  bandGradient.addColorStop(0.18, 'rgba(255,255,255,0.88)');
+  bandGradient.addColorStop(0.3, 'rgba(255,248,238,0.25)');
+  bandGradient.addColorStop(0.5, 'rgba(255,255,255,0)');
+  bandGradient.addColorStop(0.7, 'rgba(255,250,244,0.22)');
+  bandGradient.addColorStop(0.82, 'rgba(255,255,255,0.72)');
+  bandGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = bandGradient;
+  ctx.fillRect(0, 0, width, height);
+
+  const topGlow = ctx.createRadialGradient(width * 0.5, height * 0.08, 0, width * 0.5, height * 0.08, width * 0.42);
+  topGlow.addColorStop(0, 'rgba(255,255,255,0.85)');
+  topGlow.addColorStop(0.45, 'rgba(255,248,238,0.2)');
+  topGlow.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = topGlow;
+  ctx.fillRect(0, 0, width, height * 0.5);
+
+  const envTexture = new THREE.CanvasTexture(envCanvas);
+  envTexture.mapping = THREE.EquirectangularReflectionMapping;
+  envTexture.colorSpace = THREE.SRGBColorSpace;
+
+  const pmremGenerator = new THREE.PMREMGenerator(renderer);
+  const envRenderTarget = pmremGenerator.fromEquirectangular(envTexture);
+  const environmentMap = envRenderTarget.texture;
+
+  envTexture.dispose();
+  pmremGenerator.dispose();
+
+  return environmentMap;
+}
+
+const studioEnvironmentMap = createStudioEnvironmentMap();
+if (studioEnvironmentMap) {
+  scene.environment = studioEnvironmentMap;
+}
+
 // ── Controls ──
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = !reducedMotion;
@@ -254,24 +310,30 @@ fillLight.position.set(-5, 5, -5);
 scene.add(fillLight);
 
 // ── Materials ──
+const CAKE_FROSTING_COLOR = 0xfff2f7;
+const CAKE_SIDE_COLOR = 0xffd9c7;
+const CAKE_REVEAL_COLOR = 0xffeef6;
+const CAKE_TOP_SURFACE_COLOR = 0xfff8fc;
+
 const frostingMaterial = new THREE.MeshStandardMaterial({
-  color: 0xffffff,
-  roughness: 0.3,
+  color: CAKE_FROSTING_COLOR,
+  roughness: 0.26,
   metalness: 0.0,
 });
 
 const cakeSideMaterial = new THREE.MeshStandardMaterial({
-  color: 0xfff8f0,
-  roughness: 0.5,
+  color: CAKE_SIDE_COLOR,
+  roughness: 0.48,
   metalness: 0.0,
 });
 
 // ── Platform / Table ──
 // ── Silver platter ──
 const silverMat = new THREE.MeshStandardMaterial({
-  color: 0xd0d0d8,
+  color: 0xcfd6e0,
   roughness: 0.12,
-  metalness: 0.85,
+  metalness: 0.84,
+  envMapIntensity: 2.05,
 });
 
 // Main platter surface
@@ -291,9 +353,10 @@ scene.add(ridgeOuter);
 // Inner decorative ridge
 const ridgeInnerGeo = new THREE.TorusGeometry(5.7, 0.05, 10, 64);
 const ridgeInnerMat = new THREE.MeshStandardMaterial({
-  color: 0xe0e0e8,
-  roughness: 0.08,
+  color: 0xe7edf5,
+  roughness: 0.05,
   metalness: 0.9,
+  envMapIntensity: 2.3,
 });
 const ridgeInner = new THREE.Mesh(ridgeInnerGeo, ridgeInnerMat);
 ridgeInner.position.y = 0.02;
@@ -302,7 +365,7 @@ scene.add(ridgeInner);
 
 // Cake plate (sits on top of platter)
 const plateGeo = new THREE.CylinderGeometry(3.8, 4, 0.15, 64);
-const plateMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.2, metalness: 0.1 });
+const plateMat = new THREE.MeshStandardMaterial({ color: 0xf6f8fb, roughness: 0.2, metalness: 0.08 });
 const plate = new THREE.Mesh(plateGeo, plateMat);
 plate.position.y = 0.08;
 scene.add(plate);
@@ -604,7 +667,7 @@ cakeGroup.add(bottomRim);
 
 // Hidden reveal layer (sits on top of bottom cake, below top cake)
 const revealGeo = new THREE.CylinderGeometry(2.8, 2.8, 0.05, 64);
-const revealMat = new THREE.MeshStandardMaterial({ color: 0xfff8f0, roughness: 0.4 });
+const revealMat = new THREE.MeshStandardMaterial({ color: CAKE_REVEAL_COLOR, roughness: 0.35 });
 const revealLayer = new THREE.Mesh(revealGeo, revealMat);
 revealLayer.position.y = 1.98;
 cakeGroup.add(revealLayer);
@@ -615,7 +678,7 @@ const topCakeGeo = new THREE.CylinderGeometry(2.6, 2.8, 1.4, 64);
 // Custom burn shader material for top cake
 const burnUniforms = {
   burnProgress: { value: 0.0 },
-  baseColor: { value: new THREE.Color(0xfff8f0) },
+  baseColor: { value: new THREE.Color(CAKE_SIDE_COLOR) },
   time: { value: 0.0 },
 };
 
@@ -743,7 +806,7 @@ const topSurfaceBurnShader = `
       discard;
     }
 
-    vec3 color = vec3(1.0);
+    vec3 color = baseColor;
 
     // Ember glow at edge
     vec3 emberColor = mix(vec3(1.0, 0.3, 0.0), vec3(1.0, 0.8, 0.0), noise(vPosition.xy * 8.0 + time));
@@ -759,8 +822,13 @@ const topSurfaceBurnShader = `
     gl_FragColor = vec4(color, 1.0);
   }
 `;
+const topSurfaceUniforms = {
+  burnProgress: burnUniforms.burnProgress,
+  baseColor: { value: new THREE.Color(CAKE_TOP_SURFACE_COLOR) },
+  time: burnUniforms.time,
+};
 const topSurfaceMat = new THREE.ShaderMaterial({
-  uniforms: burnUniforms,
+  uniforms: topSurfaceUniforms,
   vertexShader: burnVertexShader,
   fragmentShader: topSurfaceBurnShader,
   side: THREE.DoubleSide,
@@ -2292,19 +2360,19 @@ cubeSpinGroup.add(cubeTiltGroup);
 
 const cubeSize = 2.4;
 
-// Dark weathered steel material — always visible, never pure black
+// Dark weathered steel material — reads black under the reveal spotlight
 const cubeMat = new THREE.MeshStandardMaterial({
-  color: 0x4a4a4a,
-  roughness: 0.65,
-  metalness: 0.8,
-  emissive: new THREE.Color(0x2a2a2a), // self-illumination so it's never pure black
+  color: 0x111111,
+  roughness: 0.68,
+  metalness: 0.82,
+  emissive: new THREE.Color(0x080808),
 });
 // Channel/gap material between panels (dark recessed grooves)
 const channelMat = new THREE.MeshStandardMaterial({
-  color: 0x1a1a1a,
+  color: 0x030303,
   roughness: 0.95,
   metalness: 0.3,
-  emissive: new THREE.Color(0x0a0a0a),
+  emissive: new THREE.Color(0x010101),
 });
 
 // Build the cube from 8 individual panels per face (2x2 grid with gaps)
@@ -2822,6 +2890,21 @@ scene.add(spotLight.target);
 // Store original scene values for blackout/restore
 const origBgColor = new THREE.Color(0xf5f0eb);
 const origFogDensity = 0.008;
+let phase2PreviewVisible = false;
+
+function showPhase2Preview() {
+  phase2PreviewVisible = true;
+  tntGroup.visible = true;
+  wickTube.visible = true;
+}
+
+function hidePhase2Preview() {
+  phase2PreviewVisible = false;
+  tntGroup.visible = false;
+  wickTube.visible = false;
+  wickHitbox.visible = false;
+  wickGlow.visible = false;
+}
 
 // ── Phase 2 trigger: enter wickReady after Phase 1 completes ──
 function enterPhase2() {
@@ -2830,9 +2913,8 @@ function enterPhase2() {
   wickReadyTime = performance.now() / 1000;
   setStatusMessage('Celebration arming now. The fuse will light automatically in a moment.');
 
-  // Show TNT and wick
-  tntGroup.visible = true;
-  wickTube.visible = true;
+  // Show TNT and wick, then enable the interactive fuse glow.
+  showPhase2Preview();
   wickHitbox.visible = true;
   wickGlow.visible = true;
 
@@ -2876,8 +2958,7 @@ function hidePhase1Elements() {
   ridgeInner.visible = false;
   plate.visible = false;
   // Hide TNT, wick, and tray decorations
-  tntGroup.visible = false;
-  wickTube.visible = false;
+  hidePhase2Preview();
   trayDecoGroup.visible = false;
 
   settleGroundConfetti();
@@ -3107,8 +3188,7 @@ function resetPhase2() {
   phase2State = 'idle';
 
   // Reset Phase 2 elements (TNT stays visible)
-  tntGroup.visible = true;
-  wickTube.visible = true;
+  showPhase2Preview();
   wickHitbox.visible = true;
   wickGlow.visible = true;
   wickBurnUniforms.uBurnProgress.value = 0;
@@ -3266,6 +3346,10 @@ function animate() {
       topRim.visible = false;
       topDots.forEach(dot => { dot.visible = false; });
       logoMeshes.forEach(mesh => { mesh.visible = false; });
+
+      if (phase2State === 'idle' && !phase2PreviewVisible) {
+        showPhase2Preview();
+      }
     }
 
     // Progressive blur-to-focus reveal — starts blurry early, sharpens as burn progresses

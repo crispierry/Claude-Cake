@@ -30,6 +30,13 @@ function syncCongratsOverlayPlatformClass() {
   overlay.classList.toggle('mobile-safari', isMobileSafari());
 }
 
+function isRoomyDesktopViewport() {
+  const hasFinePointer = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(pointer: fine)').matches
+    : true;
+  return hasFinePointer && window.innerWidth >= 760 && window.innerHeight >= 520;
+}
+
 export function colorLettersWithColors(text, elId, color1, color2) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -68,10 +75,12 @@ export function syncCongratsLogoHeight() {
   }
 
   const styles = getComputedStyle(overlay);
-  const minLogoSize = 72;
-  const maxLogoSize = Math.min(window.innerWidth * 0.18, 168);
-  const targetHeight = textBlock.offsetHeight * (overlay.classList.contains('compact') ? 0.72 : 0.84);
-  const height = `${Math.max(minLogoSize, Math.min(maxLogoSize, targetHeight || parseFloat(styles.fontSize) * 2.2))}px`;
+  const roomyDesktop = isRoomyDesktopViewport();
+  const minLogoSize = roomyDesktop ? 88 : 72;
+  const maxLogoSize = Math.min(window.innerWidth * (roomyDesktop ? 0.145 : 0.18), roomyDesktop ? 156 : 168);
+  const targetHeight = textBlock.offsetHeight * (overlay.classList.contains('compact') ? 0.72 : roomyDesktop ? 0.92 : 0.84);
+  const fallbackHeight = parseFloat(styles.fontSize) * (roomyDesktop ? 2.0 : 2.2);
+  const height = `${Math.max(minLogoSize, Math.min(maxLogoSize, targetHeight || fallbackHeight))}px`;
   left.style.height = height;
   right.style.height = height;
 }
@@ -88,16 +97,35 @@ export function syncCongratsOverlayLayout() {
 
   overlay.classList.remove('compact');
 
+  const roomyDesktop = isRoomyDesktopViewport();
   const maxWidth = Math.max(window.innerWidth - 40, 220);
-  const maxHeight = Math.max(Math.min(window.innerHeight * 0.34, 320), 160);
+  const maxHeight = Math.max(
+    Math.min(window.innerHeight * (roomyDesktop ? 0.26 : 0.34), roomyDesktop ? 240 : 320),
+    roomyDesktop ? 120 : 160
+  );
 
   syncCongratsLogoHeight();
-  if (content.scrollWidth > maxWidth * 0.92) {
+  if (content.scrollWidth > maxWidth * 0.96 || content.scrollHeight > maxHeight * 0.96) {
     overlay.classList.add('compact');
     syncCongratsLogoHeight();
   }
 
   let fontSize = parseFloat(getComputedStyle(overlay).fontSize);
+  const growthLimit = roomyDesktop ? 108 : 96;
+
+  while (fontSize < growthLimit && content.scrollWidth < maxWidth * 0.97 && content.scrollHeight < maxHeight * 0.97) {
+    fontSize += 1;
+    overlay.style.fontSize = `${fontSize}px`;
+    syncCongratsLogoHeight();
+  }
+
+  if (fontSize > 0 && (content.scrollWidth > maxWidth || content.scrollHeight > maxHeight)) {
+    fontSize -= 1;
+    overlay.style.fontSize = `${fontSize}px`;
+    syncCongratsLogoHeight();
+  }
+
+  fontSize = parseFloat(getComputedStyle(overlay).fontSize);
   while (fontSize > 18 && (content.scrollWidth > maxWidth || content.scrollHeight > maxHeight)) {
     fontSize -= 1;
     overlay.style.fontSize = `${fontSize}px`;
