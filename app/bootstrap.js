@@ -66,7 +66,7 @@ async function bootstrapExperience() {
   try {
     await import('./cake-experience.js');
     hideFallback();
-    setStatusMessage('Drag to rotate. Scroll or pinch to zoom. Press L to light the candle when you are ready.');
+    setStatusMessage('Drag to rotate. Scroll or pinch to zoom. Light the candle when you are ready.');
   } catch (error) {
     console.error('Failed to start Celebration Cake', error);
     showFallback(

@@ -94,5 +94,5 @@ Open `http://localhost:8000` in a browser. Audio requires a user gesture to init
 - Desktop Chrome, Firefox, Safari, Edge (WebGL required)
 - Mobile Safari and Chrome (responsive camera, touch controls, safe-area-inset support)
 - Graceful fallback screen when WebGL or modern modules are unavailable
-- Keyboard-accessible primary actions and a button-based school picker alongside the 3D scene
+- Button-based school picker alongside the 3D scene for easier selection on touch devices
 - Pixel ratio capped at 2x for performance on high-DPI screens

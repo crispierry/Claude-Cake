@@ -9,42 +9,30 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div id="experience-host" aria-hidden="true"></div>
+<div id="experience-host"></div>
 
 <div id="app-shell">
   <div id="title" hidden></div>
-  <div id="status-banner" role="status">Loading the 3D celebration experience...</div>
-  <button id="light-btn" class="app-control app-control--primary" type="button">Light the Candle</button>
+  <button id="light-btn" class="app-control app-control--primary" type="button">Light the candle</button>
+  <button id="school-prompt-btn" class="app-control app-control--primary" type="button" hidden>Choose a school!</button>
   <button id="reset-btn" class="app-control app-control--secondary" type="button">Reset</button>
-  <div id="white-flash" aria-hidden="true"></div>
-  <div id="logo-select-instructions" role="status" aria-live="polite">Choose a school on the cake or use the buttons below.</div>
+  <div id="white-flash"></div>
 
-  <section id="school-picker" class="floating-panel" hidden aria-labelledby="school-picker-title">
-    <h2 id="school-picker-title">Choose a school</h2>
-    <p>Tap a logo on the cake or use these buttons if the 3D target is hard to hit.</p>
-    <div class="school-choice-grid">
-      <button class="app-control school-choice" type="button" data-school-choice="michigan"></button>
-      <button class="app-control school-choice" type="button" data-school-choice="maryland"></button>
-    </div>
-  </section>
+  <button id="audio-toggle" type="button"></button>
 
-  <button id="audio-toggle" type="button" aria-label="Pause fight song"></button>
-
-  <div id="congrats-overlay" aria-live="polite">
+  <div id="congrats-overlay">
     <div id="congrats-content">
-      <img src="logos/placeholder.png" id="congrats-logo-left" class="congrats-logo" alt="" aria-hidden="true">
+      <img src="logos/placeholder.png" id="congrats-logo-left" class="congrats-logo" alt="">
       <div id="congrats-text-block">
         <span id="congrats-text"></span><br>
         <span id="tati-text"></span><br>
         <span id="goblue-text"></span>
       </div>
-      <img src="logos/placeholder.png" id="congrats-logo-right" class="congrats-logo" alt="" aria-hidden="true">
+      <img src="logos/placeholder.png" id="congrats-logo-right" class="congrats-logo" alt="">
     </div>
   </div>
 
-  <div id="app-live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-
-  <section id="browser-fallback" class="fallback-panel" hidden aria-labelledby="fallback-title">
+  <section id="browser-fallback" class="fallback-panel" hidden>
     <h1 id="fallback-title">This browser cannot start the 3D celebration right now</h1>
     <p id="fallback-message">Try the latest Safari, Chrome, Firefox, or Edge on a device with WebGL enabled.</p>
     <button id="fallback-retry" class="app-control app-control--primary" type="button">Try Again</button>
@@ -64,12 +52,8 @@
     var fallback = document.getElementById('browser-fallback');
     var message = document.getElementById('fallback-message');
     var retry = document.getElementById('fallback-retry');
-    var status = document.getElementById('status-banner');
     if (message) {
       message.textContent = 'This experience needs modern JavaScript module support. Please update your browser and try again.';
-    }
-    if (status) {
-      status.hidden = true;
     }
     if (fallback) {
       fallback.hidden = false;

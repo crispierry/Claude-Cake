@@ -11,7 +11,7 @@ The app is now a small static web project with a thin HTML shell, shared CSS, an
 | `index.html` | App shell, accessible controls, live regions, and browser fallback markup |
 | `styles.css` | Shared layout, overlay styling, responsive control placement, reduced-motion CSS |
 | `app/bootstrap.js` | Capability checks, safe startup, and fallback/error handling |
-| `app/shared-ui.js` | Control binding, status announcements, school picker, congrats layout helpers |
+| `app/shared-ui.js` | Control binding, visible status banner, school picker, congrats layout helpers |
 | `app/site-config.js` | Shared event copy, school metadata, and local asset references |
 | `app/cake-experience.js` | Three.js scene graph, shaders, audio, animation loop, and phase state machine |
 | `scripts/verify.mjs` | Publish-time validation for syntax, assets, and external runtime URLs |
@@ -32,9 +32,8 @@ The app is now a small static web project with a thin HTML shell, shared CSS, an
 
 ### Interaction Model
 - Pointer/touch input still drives the 3D scene directly.
-- Primary actions are also exposed as regular HTML buttons so the experience remains usable on mobile web and by keyboard.
+- Primary actions are also exposed as regular HTML buttons so the experience remains easy to use on mobile web.
 - School selection has both in-scene hit targets and an explicit button-based picker.
-- Live status text announces major state changes for assistive technology.
 - Event-specific names, dates, logos, and fight-song assets come from `app/site-config.js` instead of being scattered across the shell and scene code.
 
 ### Audio System

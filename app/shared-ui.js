@@ -1,17 +1,14 @@
 import { DEFAULT_SCHOOL_KEY, SELECTABLE_SCHOOLS, SITE_CONFIG } from './site-config.js';
 
-const liveRegion = document.getElementById('app-live-region');
-const statusBanner = document.getElementById('status-banner');
-const schoolPicker = document.getElementById('school-picker');
-const schoolChoiceButtons = Array.from(document.querySelectorAll('[data-school-choice]'));
 const browserFallback = document.getElementById('browser-fallback');
 const fallbackMessage = document.getElementById('fallback-message');
 const audioToggle = document.getElementById('audio-toggle');
+const schoolPromptButton = document.getElementById('school-prompt-btn');
 const interactiveControls = [
   document.getElementById('light-btn'),
+  schoolPromptButton,
   document.getElementById('reset-btn'),
   audioToggle,
-  ...schoolChoiceButtons,
 ].filter(Boolean);
 
 export const prefersReducedMotion =
@@ -84,30 +81,20 @@ export function syncCongratsOverlayLayout() {
   syncCongratsLogoHeight();
 }
 
-export function announceStatus(message) {
-  if (!liveRegion || !message) return;
-  liveRegion.textContent = '';
-  requestAnimationFrame(() => {
-    liveRegion.textContent = message;
-  });
+export function setStatusMessage(message) {
+  void message;
 }
 
-export function setStatusMessage(message) {
-  if (statusBanner) {
-    statusBanner.textContent = message;
-    statusBanner.hidden = !message;
-  }
-  if (message) announceStatus(message);
-}
+// Compatibility shim for browsers holding an older cached cake-experience module.
+export function announceStatus() {}
 
 export function showSchoolPicker() {
-  if (!schoolPicker) return;
-  schoolPicker.hidden = false;
-  schoolChoiceButtons[0]?.focus();
+  if (!schoolPromptButton) return;
+  schoolPromptButton.hidden = false;
 }
 
 export function hideSchoolPicker() {
-  if (schoolPicker) schoolPicker.hidden = true;
+  if (schoolPromptButton) schoolPromptButton.hidden = true;
 }
 
 export function setAudioToggleState(isPlaying) {
@@ -115,7 +102,6 @@ export function setAudioToggleState(isPlaying) {
   audioToggle.innerHTML = isPlaying
     ? '<svg viewBox="0 0 24 24" width="38" height="38" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"></rect><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"></rect></svg>'
     : '<svg viewBox="0 0 24 24" width="38" height="38" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg>';
-  audioToggle.setAttribute('aria-label', isPlaying ? 'Pause fight song' : 'Play fight song');
 }
 
 export function showFallback(title, message) {
@@ -127,7 +113,6 @@ export function showFallback(title, message) {
   });
   if (browserFallback) browserFallback.hidden = false;
   setStatusMessage('');
-  announceStatus([title, message].filter(Boolean).join('. '));
 }
 
 export function hideFallback() {
@@ -142,31 +127,6 @@ export function bindAppControls(handlers) {
   document.getElementById('reset-btn')?.addEventListener('click', () => handlers.onReset?.());
   audioToggle?.addEventListener('click', () => handlers.onToggleAudio?.());
   document.getElementById('fallback-retry')?.addEventListener('click', () => handlers.onRetry?.());
-  schoolChoiceButtons.forEach((button) => {
-    button.addEventListener('click', () => handlers.onChooseSchool?.(button.dataset.schoolChoice || ''));
-  });
-
-  window.addEventListener('keydown', (event) => {
-    const target = event.target;
-    if (target instanceof HTMLElement && target.closest('button, input, textarea, select, [contenteditable="true"]')) {
-      return;
-    }
-    if (event.repeat) return;
-
-    const key = event.key.toLowerCase();
-    if (key === 'l') {
-      handlers.onLight?.();
-    } else if (key === 'r') {
-      handlers.onReset?.();
-    } else if (key === 'm' && !schoolPicker?.hidden) {
-      handlers.onChooseSchool?.('michigan');
-    } else if (key === 'd' && !schoolPicker?.hidden) {
-      handlers.onChooseSchool?.('maryland');
-    } else if (key === ' ') {
-      event.preventDefault();
-      handlers.onToggleAudio?.();
-    }
-  });
 }
 
 export function initializeSharedUi() {
@@ -174,22 +134,10 @@ export function initializeSharedUi() {
   document.title = SITE_CONFIG.meta.title;
   const recipientName = document.getElementById('tati-text');
   if (recipientName) recipientName.textContent = SITE_CONFIG.event.recipientName;
-  const pickerTitle = document.getElementById('school-picker-title');
-  if (pickerTitle) pickerTitle.textContent = SITE_CONFIG.event.schoolPickerTitle;
-  const pickerHelp = document.querySelector('#school-picker p');
-  if (pickerHelp) pickerHelp.textContent = SITE_CONFIG.event.schoolPickerHelp;
-  const pickerStatus = document.getElementById('logo-select-instructions');
-  if (pickerStatus) pickerStatus.textContent = SITE_CONFIG.event.schoolPickerHelp;
   const leftLogo = document.getElementById('congrats-logo-left');
   const rightLogo = document.getElementById('congrats-logo-right');
   if (leftLogo) leftLogo.src = defaultSchool.logo;
   if (rightLogo) rightLogo.src = defaultSchool.logo;
-  schoolChoiceButtons.forEach((button) => {
-    const school = SELECTABLE_SCHOOLS[button.dataset.schoolChoice || ''];
-    if (!school) return;
-    button.textContent = school.name;
-    button.setAttribute('aria-label', `Choose ${school.name}`);
-  });
   window.addEventListener('resize', syncCongratsOverlayLayout);
   colorLettersWithColors(SITE_CONFIG.event.congratsHeadline, 'congrats-text', defaultSchool.secondaryCSS, defaultSchool.primaryCSS);
   colorLettersWithColors(defaultSchool.goText, 'goblue-text', defaultSchool.secondaryCSS, defaultSchool.primaryCSS);

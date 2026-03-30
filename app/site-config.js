@@ -7,9 +7,6 @@ export const SITE_CONFIG = {
     congratsHeadline: 'CONGRATULATIONS!',
     revealTopText: 'It is now down to two',
     revealBottomText: 'March 28th, 2026',
-    schoolPickerTitle: 'Choose a school',
-    schoolPickerHelp: 'Tap a logo on the cake or use these buttons if the 3D target is hard to hit.',
-    schoolPickerStatus: 'Choose a school on the cake or use the buttons below. Press M for Michigan or D for Maryland.',
     revealSelectableKeys: ['michigan', 'maryland'],
   },
 };

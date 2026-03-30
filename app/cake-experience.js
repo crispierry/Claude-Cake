@@ -1,7 +1,6 @@
 import * as THREE from '../vendor/three/three.module.js';
 import { OrbitControls } from '../vendor/three/controls/OrbitControls.js';
 import {
-  announceStatus,
   colorLettersWithColors,
   hideSchoolPicker,
   prefersReducedMotion,
@@ -1246,51 +1245,107 @@ function stopFireAudio() {
   }, 500);
 }
 
-function playExplosionBoom() {
+async function playExplosionBoom() {
   try {
-    const sharedCtx = ensurePhase2AudioContext();
-    const ownsContext = !sharedCtx;
-    const ctx = sharedCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
-    // Low frequency boom - noise burst shaped with fast attack, slow decay
-    const duration = 1.5;
-    const sampleRate = ctx.sampleRate;
-    const frames = Math.floor(sampleRate * duration);
-    const buffer = ctx.createBuffer(1, frames, sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < frames; i++) {
-      const t = i / sampleRate;
-      // Exponential decay envelope
-      const env = Math.exp(-t * 4);
-      // Mix of low rumble and mid crack
-      const low = Math.sin(t * 60 * Math.PI * 2) * 0.6;
-      const mid = Math.sin(t * 200 * Math.PI * 2) * 0.3 * Math.exp(-t * 8);
-      const noise = (Math.random() * 2 - 1) * 0.4 * Math.exp(-t * 6);
-      data[i] = (low + mid + noise) * env;
+    const hadSharedContext = Boolean(phase2AudioContext);
+    let ctx = ensurePhase2AudioContext();
+    let ownsContext = false;
+
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      ownsContext = true;
+    } else if (!hadSharedContext && ctx !== phase2AudioContext) {
+      ownsContext = true;
     }
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    // Lowpass to make it deep and rumbly
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 400;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.8;
-    src.connect(lp);
-    lp.connect(gain);
-    gain.connect(ctx.destination);
-    src.start();
+
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch (resumeError) {
+        if (ownsContext) ctx.close().catch(() => {});
+        return;
+      }
+    }
+
+    const now = ctx.currentTime;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.0001, now);
+    masterGain.gain.exponentialRampToValueAtTime(1.05, now + 0.02);
+    masterGain.gain.exponentialRampToValueAtTime(0.22, now + 0.22);
+    masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.1);
+
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -26;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 8;
+    compressor.attack.value = 0.002;
+    compressor.release.value = 0.18;
+
+    const bodyOsc = ctx.createOscillator();
+    bodyOsc.type = 'triangle';
+    bodyOsc.frequency.setValueAtTime(185, now);
+    bodyOsc.frequency.exponentialRampToValueAtTime(65, now + 0.55);
+    const bodyGain = ctx.createGain();
+    bodyGain.gain.setValueAtTime(0.75, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.85);
+
+    const tailOsc = ctx.createOscillator();
+    tailOsc.type = 'sine';
+    tailOsc.frequency.setValueAtTime(120, now);
+    tailOsc.frequency.exponentialRampToValueAtTime(58, now + 0.9);
+    const tailGain = ctx.createGain();
+    tailGain.gain.setValueAtTime(0.45, now + 0.02);
+    tailGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.05);
+
+    const crackDuration = 0.18;
+    const crackFrames = Math.max(1, Math.floor(ctx.sampleRate * crackDuration));
+    const crackBuffer = ctx.createBuffer(1, crackFrames, ctx.sampleRate);
+    const crackData = crackBuffer.getChannelData(0);
+    for (let i = 0; i < crackFrames; i++) {
+      const t = i / ctx.sampleRate;
+      const env = Math.exp(-t * 24);
+      crackData[i] = (Math.random() * 2 - 1) * env;
+    }
+
+    const crackSource = ctx.createBufferSource();
+    crackSource.buffer = crackBuffer;
+    const crackFilter = ctx.createBiquadFilter();
+    crackFilter.type = 'bandpass';
+    crackFilter.frequency.value = 1200;
+    crackFilter.Q.value = 0.7;
+    const crackGain = ctx.createGain();
+    crackGain.gain.setValueAtTime(0.9, now);
+    crackGain.gain.exponentialRampToValueAtTime(0.0001, now + crackDuration);
+
+    bodyOsc.connect(bodyGain);
+    tailOsc.connect(tailGain);
+    crackSource.connect(crackFilter);
+    crackFilter.connect(crackGain);
+
+    bodyGain.connect(masterGain);
+    tailGain.connect(masterGain);
+    crackGain.connect(masterGain);
+    masterGain.connect(compressor);
+    compressor.connect(ctx.destination);
+
+    bodyOsc.start(now);
+    tailOsc.start(now);
+    crackSource.start(now);
+
+    bodyOsc.stop(now + 0.9);
+    tailOsc.stop(now + 1.1);
+    crackSource.stop(now + crackDuration);
+
     if (ownsContext) {
-      src.onended = () => ctx.close().catch(() => {});
+      tailOsc.onended = () => ctx.close().catch(() => {});
     }
-  } catch(e) {}
+  } catch (e) {}
 }
 
 function startBurn() {
   isBurning = true;
   burnStartTime = performance.now() / 1000;
   setStatusMessage('The cake is burning down. When the reveal finishes, choose a school on the cake or use the buttons below.');
-  announceStatus('The cake has started burning.');
 
   // Show flame
   flameGroup.visible = true;
@@ -2386,10 +2441,7 @@ const schoolConfig = SELECTABLE_SCHOOLS;
 function showLogoSelectPrompt() {
   awaitingLogoClick = true;
   showSchoolPicker();
-  setStatusMessage(SITE_CONFIG.event.schoolPickerStatus);
-  const el = document.getElementById('logo-select-instructions');
-  el.style.display = 'block';
-  el.style.opacity = '1';
+  setStatusMessage('Choose a school!');
 }
 
 function selectSchool(config) {
@@ -2398,9 +2450,6 @@ function selectSchool(config) {
   applySchoolTheme();
   hideSchoolPicker();
   setStatusMessage(`${config.name} selected. Starting the celebration.`);
-  announceStatus(`${config.name} selected.`);
-  document.getElementById('logo-select-instructions').style.opacity = '0';
-  setTimeout(() => { document.getElementById('logo-select-instructions').style.display = 'none'; }, 500);
 
   ensurePhase2AudioContext();
   primeFightSongPlayback();
@@ -2838,7 +2887,7 @@ function updatePhase2(elapsed, dt) {
       congrats.style.display = 'block';
       syncCongratsOverlayLayout();
       setTimeout(() => { congrats.style.transform = 'scale(1)'; }, reducedMotion ? 0 : 50);
-      setStatusMessage('Celebration complete. Press R or use Reset to play it again.');
+      setStatusMessage('Celebration complete. Use Reset to play it again.');
 
       // Show reset button
       setTimeout(() => { document.getElementById('reset-btn').style.display = 'block'; }, 2000);
