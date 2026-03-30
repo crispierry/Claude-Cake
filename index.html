@@ -112,85 +112,22 @@
     line-height: 1.3;
     transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s;
   }
-  #password-gate {
+  #logo-select-instructions {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.85);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 200;
-    backdrop-filter: blur(8px);
-  }
-  #password-gate.active { display: flex; }
-  #password-box {
-    background: linear-gradient(135deg, #1a1a2e, #16213e);
-    border: 2px solid rgba(255,255,255,0.15);
-    border-radius: 16px;
-    padding: 36px 40px;
-    text-align: center;
-    max-width: 360px;
-    width: 90%;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  }
-  #password-box h2 {
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
     color: #fff;
-    font-family: 'Georgia', serif;
-    font-size: 22px;
-    margin-bottom: 8px;
-  }
-  #password-box p {
-    color: rgba(255,255,255,0.6);
-    font-family: 'Georgia', serif;
-    font-size: 14px;
-    margin-bottom: 20px;
-  }
-  #password-input {
-    width: 100%;
-    padding: 12px 16px;
-    border: 2px solid rgba(255,255,255,0.2);
-    border-radius: 10px;
-    background: rgba(255,255,255,0.08);
-    color: #fff;
-    font-size: 16px;
-    font-family: 'Georgia', serif;
-    text-align: center;
-    outline: none;
-    transition: border-color 0.3s;
-  }
-  #password-input:focus { border-color: rgba(255,180,0,0.6); }
-  #password-input.shake {
-    animation: shake 0.4s ease-in-out;
-    border-color: #ff4444;
-  }
-  #password-submit {
-    margin-top: 16px;
-    background: linear-gradient(135deg, #ff6600, #ff9900);
-    color: #fff;
-    border: none;
-    padding: 12px 32px;
+    background: rgba(0,0,0,0.6);
+    padding: 14px 32px;
     border-radius: 25px;
-    cursor: pointer;
-    font-size: 16px;
+    font-size: 18px;
+    font-weight: bold;
     font-family: 'Georgia', serif;
-    box-shadow: 0 4px 15px rgba(255,102,0,0.4);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  #password-submit:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(255,102,0,0.6); }
-  #password-error {
-    color: #ff6666;
-    font-size: 13px;
-    font-family: 'Georgia', serif;
-    margin-top: 10px;
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-8px); }
-    40% { transform: translateX(8px); }
-    60% { transform: translateX(-6px); }
-    80% { transform: translateX(6px); }
+    pointer-events: none;
+    text-align: center;
+    display: none;
+    transition: opacity 0.5s;
   }
 </style>
 </head>
@@ -202,16 +139,7 @@
 <button id="reset-btn" onclick="resetCake()">Reset</button>
 <button id="fuse-instructions" onclick="window.lightTheFuse && window.lightTheFuse()">Light the Fuse!</button>
 <div id="white-flash"></div>
-<div id="password-gate">
-  <div id="password-box">
-    <h2>Locked Content</h2>
-    <p>Enter the password to continue</p>
-    <input type="password" id="password-input" placeholder="Password" autocomplete="off">
-    <br>
-    <button id="password-submit">Unlock</button>
-    <div id="password-error">Incorrect password</div>
-  </div>
-</div>
+<div id="logo-select-instructions">Click a school logo on the cake!</div>
 <button id="audio-toggle" onclick="toggleFightSong()" style="display:none; position:fixed; bottom:24px; right:24px; z-index:10000; width:56px; height:56px; border-radius:50%; border:none; background:rgba(0,39,76,0.85); color:#FFCB05; font-size:24px; cursor:pointer; box-shadow:0 2px 12px rgba(0,0,0,0.4); backdrop-filter:blur(6px); transition:opacity 0.3s;">&#9208;</button>
 <div id="congrats-overlay">
   <div style="display:flex; align-items:center; justify-content:center; gap:clamp(12px, 2vw, 24px); max-width:100vw; padding:0 10px; box-sizing:border-box;">
@@ -221,22 +149,22 @@
   </div>
 </div>
 <script>
-// Alternating blue/yellow letters
-function colorLetters(text, elId) {
+// Alternating colored letters (parameterized)
+function colorLettersWithColors(text, elId, color1, color2) {
   const el = document.getElementById(elId);
-  const blue = '#00274C', maize = '#FFCB05';
   let html = '';
   let colorIdx = 0;
   for (let i = 0; i < text.length; i++) {
     if (text[i] === ' ') { html += ' '; continue; }
-    const c = colorIdx % 2 === 0 ? maize : blue;
+    const c = colorIdx % 2 === 0 ? color1 : color2;
     html += '<span style="color:' + c + '">' + text[i] + '</span>';
     colorIdx++;
   }
   el.innerHTML = html;
 }
-colorLetters('CONGRATULATIONS!', 'congrats-text');
-colorLetters('GO BLUE!', 'goblue-text');
+// Default Michigan colors (will be overridden by applySchoolTheme on unlock)
+colorLettersWithColors('CONGRATULATIONS!', 'congrats-text', '#FFCB05', '#00274C');
+colorLettersWithColors('GO BLUE!', 'goblue-text', '#FFCB05', '#00274C');
 
 // Match logo height to the text block (from top of CONGRATULATIONS to bottom of GO BLUE)
 function matchLogoHeight() {
@@ -1488,9 +1416,9 @@ function startBurn() {
   document.getElementById('instructions').style.opacity = '0';
   document.getElementById('light-btn').style.display = 'none';
 
-  // Phase 2 triggers after password gate
+  // After phase 1, prompt user to click a school logo
   setTimeout(() => {
-    showPasswordGate();
+    showLogoSelectPrompt();
   }, burnDuration * 1000 + 2000);
 }
 
@@ -2139,6 +2067,95 @@ shadowDisc.rotation.x = -Math.PI / 2;
 shadowDisc.position.y = -cubeVertexOffset;
 monumentGroup.add(shadowDisc); // on monumentGroup so it doesn't spin
 
+// ── Maryland 3D "M" Letter ──
+// Upright M that spins horizontally on the ground (not tilted like the cube)
+// Own spin group directly under monumentGroup, bypassing cubeTiltGroup
+const mLetterSpinGroup = new THREE.Group();
+mLetterSpinGroup.visible = false;
+monumentGroup.add(mLetterSpinGroup);
+
+const mLetterGroup = new THREE.Group();
+// Position M so its feet sit at the same ground level as the cube's bottom vertex
+// M total height = legH + 2*serfH = 3.2, center at 0, bottom at -1.6
+// Monument final y = cubeVertexOffset ≈ 2.08, ground at -cubeVertexOffset from monument origin
+// Shift: -(cubeVertexOffset - 1.6) to align feet with ground
+mLetterGroup.position.y = -(cubeSize * Math.sqrt(3) / 2 - 1.6);
+mLetterSpinGroup.add(mLetterGroup);
+
+(function buildMarylandM() {
+  // Block "M" built from 5 boxes (two legs, two diagonals, and a base connector)
+  // This avoids ExtrudeGeometry triangulation issues with complex shapes
+  const mRed = new THREE.MeshStandardMaterial({
+    color: 0xCE1126,
+    roughness: 0.4,
+    metalness: 0.3,
+    emissive: new THREE.Color(0xCE1126).multiplyScalar(0.15),
+  });
+  const mGold = new THREE.MeshStandardMaterial({
+    color: 0xFCD116,
+    roughness: 0.35,
+    metalness: 0.5,
+    emissive: new THREE.Color(0xFCD116).multiplyScalar(0.1),
+  });
+
+  const s = 1.0; // overall scale
+  const depth = 0.5 * s;
+  const legW = 0.5 * s;   // width of each vertical leg
+  const legH = 2.4 * s;   // height of each leg
+  const totalW = 2.4 * s;  // total M width
+  const serfH = 0.4 * s;  // serif/base height
+
+  // Left vertical leg
+  const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(legW, legH, depth), mRed);
+  leftLeg.position.set(-totalW/2 + legW/2, 0, 0);
+  leftLeg.castShadow = true;
+  mLetterGroup.add(leftLeg);
+
+  // Right vertical leg
+  const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(legW, legH, depth), mRed);
+  rightLeg.position.set(totalW/2 - legW/2, 0, 0);
+  rightLeg.castShadow = true;
+  mLetterGroup.add(rightLeg);
+
+  // Left diagonal (angled from top-left to center-bottom)
+  const diagLen = Math.sqrt((totalW/2 - legW/2) ** 2 + (legH * 0.65) ** 2);
+  const diagAngle = Math.atan2(legH * 0.65, totalW/2 - legW/2);
+  const leftDiag = new THREE.Mesh(new THREE.BoxGeometry(diagLen, legW * 0.7, depth), mRed);
+  leftDiag.position.set(-totalW/4 + legW/4, legH * 0.15, 0);
+  leftDiag.rotation.z = -diagAngle;
+  leftDiag.castShadow = true;
+  mLetterGroup.add(leftDiag);
+
+  // Right diagonal (angled from top-right to center-bottom)
+  const rightDiag = new THREE.Mesh(new THREE.BoxGeometry(diagLen, legW * 0.7, depth), mRed);
+  rightDiag.position.set(totalW/4 - legW/4, legH * 0.15, 0);
+  rightDiag.rotation.z = diagAngle;
+  rightDiag.castShadow = true;
+  mLetterGroup.add(rightDiag);
+
+  // Top serifs (left and right)
+  const serifW = legW * 1.4;
+  const leftSerif = new THREE.Mesh(new THREE.BoxGeometry(serifW, serfH, depth), mGold);
+  leftSerif.position.set(-totalW/2 + legW/2, legH/2 + serfH/2, 0);
+  leftSerif.castShadow = true;
+  mLetterGroup.add(leftSerif);
+
+  const rightSerif = new THREE.Mesh(new THREE.BoxGeometry(serifW, serfH, depth), mGold);
+  rightSerif.position.set(totalW/2 - legW/2, legH/2 + serfH/2, 0);
+  rightSerif.castShadow = true;
+  mLetterGroup.add(rightSerif);
+
+  // Bottom serifs
+  const leftBaseSerif = new THREE.Mesh(new THREE.BoxGeometry(serifW, serfH, depth), mGold);
+  leftBaseSerif.position.set(-totalW/2 + legW/2, -legH/2 - serfH/2, 0);
+  leftBaseSerif.castShadow = true;
+  mLetterGroup.add(leftBaseSerif);
+
+  const rightBaseSerif = new THREE.Mesh(new THREE.BoxGeometry(serifW, serfH, depth), mGold);
+  rightBaseSerif.position.set(totalW/2 - legW/2, -legH/2 - serfH/2, 0);
+  rightBaseSerif.castShadow = true;
+  mLetterGroup.add(rightBaseSerif);
+})();
 
 // ── Balloons ──
 const balloonGroup = new THREE.Group();
@@ -2148,8 +2165,10 @@ const michiganBlue = 0x00274C;
 const michiganMaize = 0xFFCB05;
 
 function spawnBalloons() {
+  const c1 = activeSchool ? activeSchool.primary : michiganBlue;
+  const c2 = activeSchool ? activeSchool.secondary : michiganMaize;
   for (let i = 0; i < 50; i++) {
-    const color = i % 2 === 0 ? michiganBlue : michiganMaize;
+    const color = i % 2 === 0 ? c1 : c2;
     const bGroup = new THREE.Group();
 
     // Balloon body (elongated sphere)
@@ -2231,34 +2250,102 @@ function clearBalloons() {
   balloons.length = 0;
 }
 
-// ── Password gate for Phase 2 ──
-function showPasswordGate() {
-  const gate = document.getElementById('password-gate');
-  gate.classList.add('active');
-  const input = document.getElementById('password-input');
-  input.value = '';
-  input.focus();
-  document.getElementById('password-error').style.opacity = '0';
+// ── School configurations ──
+let activeSchool = null; // set by logo click
+let awaitingLogoClick = false; // true after phase 1 burn, before logo selection
+
+const schoolConfig = {
+  michigan: {
+    primary: 0x00274C,
+    secondary: 0xFFCB05,
+    primaryCSS: '#00274C',
+    secondaryCSS: '#FFCB05',
+    goText: 'GO BLUE!',
+    logo: 'logos/michigan.png',
+    audio: 'victors.mp3',
+    monument: 'cube', // use the Endover Cube
+  },
+  maryland: {
+    primary: 0xCE1126,
+    secondary: 0xFCD116,
+    primaryCSS: '#CE1126',
+    secondaryCSS: '#FCD116',
+    goText: 'GO TERRAPINS!',
+    logo: 'logos/maryland.png',
+    audio: 'maryland-fight.mp3',
+    monument: 'mLetter', // use the 3D M
+  },
+};
+
+function showLogoSelectPrompt() {
+  awaitingLogoClick = true;
+  const el = document.getElementById('logo-select-instructions');
+  el.style.display = 'block';
+  el.style.opacity = '1';
 }
 
-function tryUnlockPhase2() {
-  const input = document.getElementById('password-input');
-  const errorEl = document.getElementById('password-error');
-  if (input.value === 'GoBlueTati2030') {
-    document.getElementById('password-gate').classList.remove('active');
-    enterPhase2();
-  } else {
-    input.classList.add('shake');
-    errorEl.style.opacity = '1';
-    setTimeout(() => { input.classList.remove('shake'); }, 400);
-    input.value = '';
-    input.focus();
-  }
+function selectSchool(config) {
+  awaitingLogoClick = false;
+  activeSchool = config;
+  applySchoolTheme();
+  document.getElementById('logo-select-instructions').style.opacity = '0';
+  setTimeout(() => { document.getElementById('logo-select-instructions').style.display = 'none'; }, 500);
+  enterPhase2();
+  // Auto-light the fuse after 1 second (no manual tap needed)
+  setTimeout(() => { startWickBurn(); }, 1000);
 }
 
-document.getElementById('password-submit').addEventListener('click', tryUnlockPhase2);
-document.getElementById('password-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') tryUnlockPhase2();
+function applySchoolTheme() {
+  const s = activeSchool;
+  colorLettersWithColors('CONGRATULATIONS!', 'congrats-text', s.secondaryCSS, s.primaryCSS);
+  colorLettersWithColors(s.goText, 'goblue-text', s.secondaryCSS, s.primaryCSS);
+  document.getElementById('congrats-logo-left').src = s.logo;
+  document.getElementById('congrats-logo-right').src = s.logo;
+  // Swap audio
+  try {
+    fightSong = new Audio(s.audio);
+    fightSong.preload = 'auto';
+    fightSongLoaded = false;
+    fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
+  } catch(e) {}
+}
+
+// ── Clickable hitbox planes for logo selection ──
+// Larger invisible planes behind each logo for easier click detection
+const michiganHitbox = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.0, 2.0),
+  new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
+);
+michiganHitbox.position.copy(michiganReveal.position);
+michiganHitbox.position.y += 0.01; // slightly above to catch rays
+michiganHitbox.rotation.x = -Math.PI / 2;
+cakeGroup.add(michiganHitbox);
+
+const marylandHitbox = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.0, 2.0),
+  new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
+);
+marylandHitbox.position.copy(marylandReveal.position);
+marylandHitbox.position.y += 0.01;
+marylandHitbox.rotation.x = -Math.PI / 2;
+cakeGroup.add(marylandHitbox);
+
+// ── Logo click handler (added to existing pointerup) ──
+renderer.domElement.addEventListener('pointerup', (event) => {
+  if (!awaitingLogoClick) return;
+  const dx = event.clientX - mouseDownPos.x;
+  const dy = event.clientY - mouseDownPos.y;
+  if (Math.sqrt(dx * dx + dy * dy) > 5) return;
+
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const michiganHits = raycaster.intersectObjects([michiganReveal, michiganHitbox]);
+  if (michiganHits.length > 0) { selectSchool(schoolConfig.michigan); return; }
+
+  const marylandHits = raycaster.intersectObjects([marylandReveal, marylandHitbox]);
+  if (marylandHits.length > 0) { selectSchool(schoolConfig.maryland); return; }
 });
 
 // ── Phase 2 Michigan confetti ──
@@ -2267,7 +2354,9 @@ const phase2ConfettiGroup = new THREE.Group();
 scene.add(phase2ConfettiGroup);
 
 function launchPhase2Confetti() {
-  const colors = [michiganBlue, michiganMaize];
+  const c1 = activeSchool ? activeSchool.primary : michiganBlue;
+  const c2 = activeSchool ? activeSchool.secondary : michiganMaize;
+  const colors = [c1, c2];
   for (let i = 0; i < 400; i++) {
     const w = 0.06 + Math.random() * 0.1;
     const h = 0.04 + Math.random() * 0.08;
@@ -2350,7 +2439,7 @@ const origFogDensity = 0.008;
 
 // ── Phase 2 trigger: enter wickReady after Phase 1 completes ──
 function enterPhase2() {
-  if (phase2State !== 'idle') return; // guard against multiple calls
+  if (phase2State !== 'idle') return;
   phase2State = 'wickReady';
   wickReadyTime = performance.now() / 1000;
 
@@ -2385,7 +2474,7 @@ function handlePhase2Click(event) {
 }
 
 function startWickBurn() {
-  if (phase2State !== 'wickReady') return; // guard against multiple calls
+  if (phase2State !== 'wickReady') return;
   phase2State = 'wickBurning';
   wickBurnStart = performance.now() / 1000;
   wickGlow.visible = false;
@@ -2579,8 +2668,17 @@ function updatePhase2(elapsed, dt) {
       phase2State = 'revealing';
       revealStart = now;
 
-      // Show monument
+      // Show monument — pick cube or M based on school
       monumentGroup.visible = true;
+      if (activeSchool && activeSchool.monument === 'mLetter') {
+        // Hide cube, show upright spinning M
+        cubeTiltGroup.visible = false;
+        mLetterSpinGroup.visible = true;
+      } else {
+        // Show cube, hide M
+        cubeTiltGroup.visible = true;
+        mLetterSpinGroup.visible = false;
+      }
 
       // Start spotlight
       spotLight.intensity = 0;
@@ -2632,7 +2730,7 @@ function updatePhase2(elapsed, dt) {
       // Spawn balloons
       spawnBalloons();
 
-      // Launch Michigan confetti
+      // Launch school-colored confetti
       launchPhase2Confetti();
 
       // Show congratulations text
@@ -2651,8 +2749,9 @@ function updatePhase2(elapsed, dt) {
     updateBalloons(dt, elapsed);
     updatePhase2Confetti(dt);
 
-    // Cube spins on its balanced vertex — bottom point stays fixed
+    // Spin the active monument
     cubeSpinGroup.rotation.y += 0.4 * dt;
+    mLetterSpinGroup.rotation.y += 0.4 * dt;
 
     return;
   }
