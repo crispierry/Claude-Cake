@@ -1412,6 +1412,9 @@ function startBurn() {
   // Start fire crackling sound
   startFireAudio();
 
+  // Kick fight song loading early (user gesture context helps on mobile)
+  if (fightSong && !fightSongLoaded) fightSong.load();
+
   // Hide instruction text and light button
   document.getElementById('instructions').style.opacity = '0';
   document.getElementById('light-btn').style.display = 'none';
@@ -1663,9 +1666,11 @@ let fightSongLoaded = false;
 try {
   fightSong = new Audio('https://archive.org/download/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors.mp3');
   fightSong.preload = 'auto';
+  fightSong.crossOrigin = 'anonymous';
   fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
-  // Also check readyState in case canplaythrough already fired
-  if (fightSong.readyState >= 4) fightSongLoaded = true;
+  fightSong.addEventListener('canplay', () => { fightSongLoaded = true; }, { once: true });
+  if (fightSong.readyState >= 3) fightSongLoaded = true;
+  fightSong.load();
 } catch(e) { /* no audio, that's fine */ }
 
 window.toggleFightSong = function() {
@@ -2486,10 +2491,16 @@ function startWickBurn() {
 
   // Play fight song on user gesture (satisfies mobile autoplay)
   if (fightSong) {
-    fightSongLoaded = true; // user gesture context, safe to play regardless
+    fightSongLoaded = true;
     fightSong.volume = 0;
     fightSong.currentTime = 0;
-    fightSong.play().catch(() => {});
+    // Try to play immediately; if not buffered yet, retry when data arrives
+    fightSong.play().catch(() => {
+      fightSong.addEventListener('canplay', () => {
+        fightSong.play().catch(() => {});
+      }, { once: true });
+      fightSong.load();
+    });
     document.getElementById('audio-toggle').style.display = 'block';
     document.getElementById('audio-toggle').innerHTML = '&#9208;'; // pause icon
   }
