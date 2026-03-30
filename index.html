@@ -255,6 +255,25 @@ controls.minDistance = 4;
 controls.maxDistance = 20;
 controls.target.set(0, initCam.targetY, 0);
 
+let lastViewportCameraFit = {
+  position: camera.position.clone(),
+  target: controls.target.clone(),
+};
+
+function buildViewportCameraFit() {
+  const p = computeCameraParams();
+  return {
+    fov: p.fov,
+    position: new THREE.Vector3(0, p.camY, p.camZ),
+    target: new THREE.Vector3(0, p.targetY, 0),
+  };
+}
+
+function cameraIsNearViewportFit(fit) {
+  return camera.position.distanceTo(fit.position) < 0.75 &&
+    controls.target.distanceTo(fit.target) < 0.35;
+}
+
 // ── Lighting ──
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
@@ -724,7 +743,7 @@ cakeGroup.add(topCake);
 
 // Top frosting rim
 const topRimGeo = new THREE.TorusGeometry(2.7, 0.1, 12, 64);
-const topRim = new THREE.Mesh(topRimGeo, frostingMaterial);
+const topRim = new THREE.Mesh(topRimGeo, frostingMaterial.clone());
 topRim.position.y = 3.35;
 topRim.rotation.x = Math.PI / 2;
 cakeGroup.add(topRim);
@@ -1545,7 +1564,7 @@ const topDots = [];
 for (let i = 0; i < 24; i++) {
   const angle = (i / 24) * Math.PI * 2;
   const dotGeo = new THREE.SphereGeometry(0.05, 8, 8);
-  const dot = new THREE.Mesh(dotGeo, frostingMaterial);
+  const dot = new THREE.Mesh(dotGeo, frostingMaterial.clone());
   dot.position.set(
     Math.cos(angle) * 2.7,
     3.35,
@@ -1721,7 +1740,7 @@ window.toggleFightSong = function() {
 
 // ── TNT Block ──
 const tntGroup = new THREE.Group();
-tntGroup.visible = true;
+tntGroup.visible = false;
 scene.add(tntGroup);
 
 // TNT box
@@ -1832,7 +1851,7 @@ const wickTubeMat = new THREE.ShaderMaterial({
   side: THREE.DoubleSide,
 });
 const wickTube = new THREE.Mesh(wickTubeGeo, wickTubeMat);
-wickTube.visible = true;
+wickTube.visible = false;
 scene.add(wickTube);
 
 // Invisible hitbox at wick start (end of curve = tap point)
@@ -1841,7 +1860,7 @@ const wickHitGeo = new THREE.SphereGeometry(0.5, 8, 8);
 const wickHitMat = new THREE.MeshBasicMaterial({ visible: false });
 const wickHitbox = new THREE.Mesh(wickHitGeo, wickHitMat);
 wickHitbox.position.copy(wickEndPt);
-wickHitbox.visible = true;
+wickHitbox.visible = false;
 scene.add(wickHitbox);
 
 // Wick-end glow indicator
@@ -1849,7 +1868,7 @@ const wickGlowGeo = new THREE.SphereGeometry(0.12, 12, 12);
 const wickGlowMat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.6 });
 const wickGlow = new THREE.Mesh(wickGlowGeo, wickGlowMat);
 wickGlow.position.copy(wickEndPt);
-wickGlow.visible = true;
+wickGlow.visible = false;
 scene.add(wickGlow);
 
 // ── Spark particles for wick burn ──
@@ -3037,13 +3056,24 @@ animate();
 
 // ── Resize ──
 window.addEventListener('resize', () => {
-  const p = computeCameraParams();
+  const nextViewportFit = buildViewportCameraFit();
+  const shouldRefitCamera = phase2State === 'idle' && cameraIsNearViewportFit(lastViewportCameraFit);
+
   camera.aspect = window.innerWidth / window.innerHeight;
-  camera.fov = p.fov;
+  camera.fov = nextViewportFit.fov;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  // Only reset camera position if user hasn't manually moved it much
-  // (preserve user's orbit state)
+
+  if (shouldRefitCamera) {
+    camera.position.copy(nextViewportFit.position);
+    controls.target.copy(nextViewportFit.target);
+    controls.update();
+  }
+
+  lastViewportCameraFit = {
+    position: nextViewportFit.position.clone(),
+    target: nextViewportFit.target.clone(),
+  };
 });
 
 
