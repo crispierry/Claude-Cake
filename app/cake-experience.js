@@ -1050,7 +1050,7 @@ schools.forEach((school, i) => {
   logoMeshes.push(logoMesh);
 
   // Logo on the outside wall of the top cake layer
-  const wallBaseHeight = 0.45;
+  const wallBaseHeight = 0.54;
   const wallAr = Math.min(school.aspect, 2.0);
   const wallHeight = wallBaseHeight * s;
   const wallWidth = wallHeight * wallAr;
@@ -1200,55 +1200,39 @@ revealText.rotation.x = -Math.PI / 2;
 cakeGroup.add(revealText);
 revealLogoMeshes.push(revealText);
 
-const positiveRevealGeo = new THREE.PlaneGeometry(1.5, 1.5);
-const positiveRevealMat = new THREE.ShaderMaterial({
-  uniforms: {
-    map: { value: null },
-    blurAmount: { value: 1.0 },
-    opacity: { value: 0.0 },
-  },
-  vertexShader: revealBlurVertexShader,
-  fragmentShader: revealBlurFragmentShader,
-  transparent: true,
-  side: THREE.DoubleSide,
-});
-loadTextureCached(revealPositiveSchool.logo).then((tex) => {
-  positiveRevealMat.uniforms.map.value = tex;
-}).catch(() => {});
-const positiveReveal = new THREE.Mesh(positiveRevealGeo, positiveRevealMat);
-positiveReveal.position.set(
-  revealPositiveSchool.revealPlanePosition.x,
-  revealPositiveSchool.revealPlanePosition.y,
-  revealPositiveSchool.revealPlanePosition.z
-);
-positiveReveal.rotation.x = -Math.PI / 2;
-cakeGroup.add(positiveReveal);
-revealLogoMeshes.push(positiveReveal);
+function createRevealLogoMesh(school) {
+  const maxSize = 1.5;
+  const aspect = school.aspect || 1.0;
+  const width = aspect >= 1 ? maxSize : maxSize * aspect;
+  const height = aspect >= 1 ? maxSize / aspect : maxSize;
+  const revealGeo = new THREE.PlaneGeometry(width, height);
+  const revealMat = new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: null },
+      blurAmount: { value: 1.0 },
+      opacity: { value: 0.0 },
+    },
+    vertexShader: revealBlurVertexShader,
+    fragmentShader: revealBlurFragmentShader,
+    transparent: true,
+    side: THREE.DoubleSide,
+  });
+  loadTextureCached(school.logo).then((tex) => {
+    revealMat.uniforms.map.value = tex;
+  }).catch(() => {});
+  const revealMesh = new THREE.Mesh(revealGeo, revealMat);
+  revealMesh.position.set(
+    school.revealPlanePosition.x,
+    school.revealPlanePosition.y,
+    school.revealPlanePosition.z
+  );
+  revealMesh.rotation.x = -Math.PI / 2;
+  cakeGroup.add(revealMesh);
+  revealLogoMeshes.push(revealMesh);
+}
 
-const negativeRevealGeo = new THREE.PlaneGeometry(1.5, 1.5);
-const negativeRevealMat = new THREE.ShaderMaterial({
-  uniforms: {
-    map: { value: null },
-    blurAmount: { value: 1.0 },
-    opacity: { value: 0.0 },
-  },
-  vertexShader: revealBlurVertexShader,
-  fragmentShader: revealBlurFragmentShader,
-  transparent: true,
-  side: THREE.DoubleSide,
-});
-loadTextureCached(revealNegativeSchool.logo).then((tex) => {
-  negativeRevealMat.uniforms.map.value = tex;
-}).catch(() => {});
-const negativeReveal = new THREE.Mesh(negativeRevealGeo, negativeRevealMat);
-negativeReveal.position.set(
-  revealNegativeSchool.revealPlanePosition.x,
-  revealNegativeSchool.revealPlanePosition.y,
-  revealNegativeSchool.revealPlanePosition.z
-);
-negativeReveal.rotation.x = -Math.PI / 2;
-cakeGroup.add(negativeReveal);
-revealLogoMeshes.push(negativeReveal);
+createRevealLogoMesh(revealPositiveSchool);
+createRevealLogoMesh(revealNegativeSchool);
 
 // ── Candle ──
 const candleGroup = new THREE.Group();
