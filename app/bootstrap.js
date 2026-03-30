@@ -49,6 +49,16 @@ function bindControls() {
   });
 }
 
+function describeStartupError(error) {
+  if (!error) {
+    return 'Unknown startup error.';
+  }
+
+  const errorName = typeof error.name === 'string' && error.name ? error.name : 'Error';
+  const errorMessage = typeof error.message === 'string' && error.message ? error.message : String(error);
+  return `${errorName}: ${errorMessage}`;
+}
+
 async function bootstrapExperience() {
   initializeSharedUi();
   bindControls();
@@ -71,7 +81,7 @@ async function bootstrapExperience() {
     console.error('Failed to start Celebration Cake', error);
     showFallback(
       'The 3D experience failed to start',
-      'Reload the page to try again. If the problem persists, use a different browser or device.'
+      `Reload the page to try again. If the problem persists, check the browser console. ${describeStartupError(error)}`
     );
   }
 }

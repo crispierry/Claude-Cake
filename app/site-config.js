@@ -34,6 +34,8 @@ export const CAKE_SCHOOLS = [
     logo: 'logos/michigan.png',
     aspect: 1.586,
     scale: 1.1,
+    topScale: 1.32,
+    revealScale: 1.2,
     fallbackColor: '#00274C',
     primary: 0x00274c,
     secondary: 0xffcb05,

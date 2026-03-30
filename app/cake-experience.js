@@ -60,7 +60,25 @@ const initialFov = getViewportFov(initialAspect);
 const camera = new THREE.PerspectiveCamera(initialFov, initialAspect, 0.1, 100);
 camera.position.copy(DEFAULT_PHASE1_TARGET).addScaledVector(DEFAULT_PHASE1_VIEW_DIRECTION, 10);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+function createRenderer() {
+  const rendererOptions = [
+    { antialias: true, alpha: false, powerPreference: 'high-performance' },
+    { antialias: false, alpha: false, powerPreference: 'default' },
+  ];
+  let lastError = null;
+
+  for (const options of rendererOptions) {
+    try {
+      return new THREE.WebGLRenderer(options);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Unable to create a WebGL renderer.');
+}
+
+const renderer = createRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
@@ -989,8 +1007,9 @@ schools.forEach((school, i) => {
   // Size logos proportionally with per-school scale
   const baseHeight = 0.55;
   const s = school.scale || 1.0;
+  const topScale = school.topScale || s;
   const ar = Math.min(school.aspect, 2.0); // tighter cap for wide logos
-  const topHeight = baseHeight * s;
+  const topHeight = baseHeight * topScale;
   const topWidth = topHeight * ar;
   const logoGeo = new THREE.PlaneGeometry(topWidth, topHeight);
 
@@ -1201,7 +1220,7 @@ cakeGroup.add(revealText);
 revealLogoMeshes.push(revealText);
 
 function createRevealLogoMesh(school) {
-  const maxSize = 1.5;
+  const maxSize = 1.5 * (school.revealScale || 1.0);
   const aspect = school.aspect || 1.0;
   const width = aspect >= 1 ? maxSize : maxSize * aspect;
   const height = aspect >= 1 ? maxSize / aspect : maxSize;
@@ -1229,10 +1248,11 @@ function createRevealLogoMesh(school) {
   revealMesh.rotation.x = -Math.PI / 2;
   cakeGroup.add(revealMesh);
   revealLogoMeshes.push(revealMesh);
+  return revealMesh;
 }
 
-createRevealLogoMesh(revealPositiveSchool);
-createRevealLogoMesh(revealNegativeSchool);
+const positiveReveal = createRevealLogoMesh(revealPositiveSchool);
+const negativeReveal = createRevealLogoMesh(revealNegativeSchool);
 
 // ── Candle ──
 const candleGroup = new THREE.Group();
