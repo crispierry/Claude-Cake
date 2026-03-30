@@ -1241,27 +1241,29 @@ flameGroup.visible = false;
 flameGroup.position.y = 1.25;
 candleGroup.add(flameGroup);
 
-// Outer flame
-const outerFlameGeo = new THREE.SphereGeometry(0.07, 16, 16);
-outerFlameGeo.scale(1, 2.0, 1);
+// Outer flame (darker orange-red tone)
+const outerFlameGeo = new THREE.SphereGeometry(0.05, 16, 16);
+outerFlameGeo.scale(1, 2.5, 1);
 const outerFlameMat = new THREE.MeshBasicMaterial({
-  color: 0xff6600,
+  color: 0xe85500,
   transparent: true,
-  opacity: 0.7,
+  opacity: 0.5,
+  depthWrite: false,
 });
 const outerFlame = new THREE.Mesh(outerFlameGeo, outerFlameMat);
 flameGroup.add(outerFlame);
 
-// Inner flame
-const innerFlameGeo = new THREE.SphereGeometry(0.035, 16, 16);
-innerFlameGeo.scale(1, 1.8, 1);
+// Inner flame (lighter yellow tone)
+const innerFlameGeo = new THREE.SphereGeometry(0.025, 16, 16);
+innerFlameGeo.scale(1, 2.2, 1);
 const innerFlameMat = new THREE.MeshBasicMaterial({
-  color: 0xffff00,
+  color: 0xffdd33,
   transparent: true,
-  opacity: 0.9,
+  opacity: 0.6,
+  depthWrite: false,
 });
 const innerFlame = new THREE.Mesh(innerFlameGeo, innerFlameMat);
-innerFlame.position.y = -0.02;
+innerFlame.position.y = -0.01;
 flameGroup.add(innerFlame);
 
 // Flame light
@@ -2972,8 +2974,8 @@ function animate() {
         flameScale * (1 + Math.sin(elapsed * 8) * 0.08),
         flameScale * (1 + Math.sin(elapsed * 10) * 0.1)
       );
-      outerFlameMat.opacity = 0.7 * flameFade;
-      innerFlameMat.opacity = 0.9 * flameFade;
+      outerFlameMat.opacity = 0.5 * flameFade;
+      innerFlameMat.opacity = 0.6 * flameFade;
       flameLight.intensity = (2.0 + Math.sin(elapsed * 15) * 0.5) * flameFade;
 
       // Update flame light position to follow
