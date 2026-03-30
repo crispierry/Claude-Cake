@@ -1401,6 +1401,41 @@ function stopFireAudio() {
   }, 500);
 }
 
+function playExplosionBoom() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Low frequency boom - noise burst shaped with fast attack, slow decay
+    const duration = 1.5;
+    const sampleRate = ctx.sampleRate;
+    const frames = Math.floor(sampleRate * duration);
+    const buffer = ctx.createBuffer(1, frames, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < frames; i++) {
+      const t = i / sampleRate;
+      // Exponential decay envelope
+      const env = Math.exp(-t * 4);
+      // Mix of low rumble and mid crack
+      const low = Math.sin(t * 60 * Math.PI * 2) * 0.6;
+      const mid = Math.sin(t * 200 * Math.PI * 2) * 0.3 * Math.exp(-t * 8);
+      const noise = (Math.random() * 2 - 1) * 0.4 * Math.exp(-t * 6);
+      data[i] = (low + mid + noise) * env;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    // Lowpass to make it deep and rumbly
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 400;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.8;
+    src.connect(lp);
+    lp.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+    src.onended = () => ctx.close().catch(() => {});
+  } catch(e) {}
+}
+
 function startBurn() {
   isBurning = true;
   burnStartTime = performance.now() / 1000;
@@ -1666,7 +1701,6 @@ let fightSongLoaded = false;
 try {
   fightSong = new Audio('https://archive.org/download/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors.mp3');
   fightSong.preload = 'auto';
-  fightSong.crossOrigin = 'anonymous';
   fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
   fightSong.addEventListener('canplay', () => { fightSongLoaded = true; }, { once: true });
   if (fightSong.readyState >= 3) fightSongLoaded = true;
@@ -2267,7 +2301,7 @@ const schoolConfig = {
     secondaryCSS: '#FFCB05',
     goText: 'GO BLUE!',
     logo: 'logos/michigan.png',
-    audio: 'victors.mp3',
+    audio: 'https://archive.org/download/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors.mp3',
     monument: 'cube', // use the Endover Cube
   },
   maryland: {
@@ -2295,6 +2329,25 @@ function selectSchool(config) {
   applySchoolTheme();
   document.getElementById('logo-select-instructions').style.opacity = '0';
   setTimeout(() => { document.getElementById('logo-select-instructions').style.display = 'none'; }, 500);
+
+  // Start fight song immediately in user gesture context (volume 0, will ramp during wick burn)
+  // This unlocks autoplay - the setTimeout for startWickBurn would break the gesture chain
+  if (fightSong) {
+    fightSong.volume = 0;
+    fightSong.currentTime = 0;
+    fightSong.play().catch((err) => {
+      // If audio isn't loaded yet, retry when it is
+      fightSong.addEventListener('canplay', () => {
+        fightSong.volume = 0;
+        fightSong.play().catch(() => {});
+      }, { once: true });
+      fightSong.load();
+    });
+    fightSongLoaded = true;
+    document.getElementById('audio-toggle').style.display = 'block';
+    document.getElementById('audio-toggle').innerHTML = '&#9208;';
+  }
+
   enterPhase2();
   // Auto-light the fuse after 1 second (no manual tap needed)
   setTimeout(() => { startWickBurn(); }, 1000);
@@ -2312,6 +2365,8 @@ function applySchoolTheme() {
     fightSong.preload = 'auto';
     fightSongLoaded = false;
     fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
+    fightSong.addEventListener('canplay', () => { fightSongLoaded = true; }, { once: true });
+    fightSong.load();
   } catch(e) {}
 }
 
@@ -2489,20 +2544,21 @@ function startWickBurn() {
   document.getElementById('fuse-instructions').style.opacity = '0';
   setTimeout(() => { document.getElementById('fuse-instructions').style.display = 'none'; }, 500);
 
-  // Play fight song on user gesture (satisfies mobile autoplay)
+  // Ensure fight song is playing (may already be started from selectSchool gesture)
   if (fightSong) {
     fightSongLoaded = true;
     fightSong.volume = 0;
-    fightSong.currentTime = 0;
-    // Try to play immediately; if not buffered yet, retry when data arrives
-    fightSong.play().catch(() => {
-      fightSong.addEventListener('canplay', () => {
-        fightSong.play().catch(() => {});
-      }, { once: true });
-      fightSong.load();
-    });
+    if (fightSong.paused) {
+      fightSong.currentTime = 0;
+      fightSong.play().catch(() => {
+        fightSong.addEventListener('canplay', () => {
+          fightSong.play().catch(() => {});
+        }, { once: true });
+        fightSong.load();
+      });
+    }
     document.getElementById('audio-toggle').style.display = 'block';
-    document.getElementById('audio-toggle').innerHTML = '&#9208;'; // pause icon
+    document.getElementById('audio-toggle').innerHTML = '&#9208;';
   }
 }
 
@@ -2627,6 +2683,9 @@ function updatePhase2(elapsed, dt) {
 
       // Spawn explosion particles
       triggerExplosion();
+
+      // Explosion boom sound
+      playExplosionBoom();
 
       // Fight song full volume
       if (fightSong && fightSongLoaded) fightSong.volume = 1.0;
