@@ -44,7 +44,9 @@ function getViewportFov(aspect = getViewportAspect()) {
 }
 
 const DEFAULT_PHASE1_TARGET = new THREE.Vector3(0, 2.0, 0);
-const DEFAULT_PHASE1_VIEW_DIRECTION = new THREE.Vector3(0, 1, 1).normalize();
+const DEFAULT_PHASE1_VIEW_DIRECTION = new THREE.Vector3(0, 0.78, 1).normalize();
+const PHASE1_CAMERA_FIT_PADDING = 0.98;
+const PHASE1_MIN_CAMERA_DISTANCE = 9.2;
 const phase1ViewportBounds = new THREE.Box3();
 const phase1ViewportBoundsCenter = new THREE.Vector3();
 const phase1ViewportFitRight = new THREE.Vector3();
@@ -288,7 +290,7 @@ function buildViewportCameraFit() {
     }
   }
 
-  const distance = Math.max(requiredDistance * 1.08, 10);
+  const distance = Math.max(requiredDistance * PHASE1_CAMERA_FIT_PADDING, PHASE1_MIN_CAMERA_DISTANCE);
   phase1ViewportFitPosition.copy(phase1ViewportFitTarget).addScaledVector(DEFAULT_PHASE1_VIEW_DIRECTION, distance);
 
   return {
