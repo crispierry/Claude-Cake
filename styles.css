@@ -129,7 +129,7 @@ canvas {
 }
 
 #reset-btn {
-  top: calc(20px + env(safe-area-inset-top, 0px));
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   right: calc(20px + env(safe-area-inset-right, 0px));
   display: none;
   font-weight: 700;
@@ -176,7 +176,7 @@ canvas {
   width: 84px;
   height: 84px;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  right: calc(20px + env(safe-area-inset-right, 0px));
+  left: calc(20px + env(safe-area-inset-left, 0px));
   z-index: 30;
   border: 3px solid rgba(255, 203, 5, 0.6);
   border-radius: 50%;
@@ -189,9 +189,11 @@ canvas {
 }
 
 #congrats-overlay {
-  --base-congrats-size: clamp(34px, 6vw, 64px);
+  --base-congrats-size: clamp(28px, 5vw, 64px);
+  --congrats-logo-size: clamp(96px, 12vw, 168px);
+  --congrats-gap: clamp(12px, 1.8vw, 24px);
   position: fixed;
-  top: 8%;
+  top: clamp(30px, 6vh, 72px);
   left: 0;
   width: 100%;
   transform: scale(0);
@@ -210,25 +212,30 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(12px, 2vw, 24px);
-  max-width: min(96vw, 1200px);
+  flex-wrap: nowrap;
+  gap: var(--congrats-gap);
+  max-width: min(100vw - 32px, 1500px);
   margin: 0 auto;
-  padding: 0 10px;
+  padding: 0 clamp(16px, 3vw, 40px);
 }
 
 .congrats-logo {
-  height: 172px;
+  width: auto;
+  height: var(--congrats-logo-size);
+  max-width: min(20vw, 190px);
   flex-shrink: 0;
+  object-fit: contain;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
 }
 
 #congrats-text-block {
-  flex-shrink: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: min(62vw, 980px);
 }
 
 #tati-text {
-  font-size: 44px;
+  font-size: clamp(28px, 0.7em, 44px);
   color: #fff;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
@@ -238,12 +245,25 @@ canvas {
   font-size: 1em;
 }
 
-#congrats-overlay.compact .congrats-logo {
-  display: none;
+#goblue-text {
+  font-size: 0.9em;
 }
 
 #congrats-overlay.compact {
-  line-height: 1.2;
+  --congrats-gap: clamp(10px, 1.4vw, 16px);
+  line-height: 1.18;
+}
+
+#congrats-overlay.compact .congrats-logo {
+  height: min(var(--congrats-logo-size), 112px);
+}
+
+#congrats-overlay.mobile-safari .congrats-logo {
+  display: none;
+}
+
+#congrats-overlay.mobile-safari #congrats-text-block {
+  max-width: min(92vw, 980px);
 }
 
 .fallback-panel {
@@ -280,10 +300,8 @@ canvas {
   }
 
   #reset-btn {
-    top: auto;
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-    left: calc(20px + env(safe-area-inset-left, 0px));
-    right: auto;
+    right: calc(20px + env(safe-area-inset-right, 0px));
     transform: none;
   }
 
@@ -297,7 +315,7 @@ canvas {
   }
 
   #congrats-overlay {
-    top: 12%;
+    top: clamp(24px, 5vh, 48px);
   }
 }
 

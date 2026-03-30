@@ -15,6 +15,21 @@ export const prefersReducedMotion =
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+function isMobileSafari() {
+  if (typeof navigator === 'undefined') return false;
+
+  const userAgent = navigator.userAgent || '';
+  const isAppleMobile = /iP(ad|hone|od)/.test(userAgent);
+  const isSafariEngine = /Safari/.test(userAgent) && !/(CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|YaBrowser)/.test(userAgent);
+  return isAppleMobile && isSafariEngine;
+}
+
+function syncCongratsOverlayPlatformClass() {
+  const overlay = document.getElementById('congrats-overlay');
+  if (!overlay) return;
+  overlay.classList.toggle('mobile-safari', isMobileSafari());
+}
+
 export function colorLettersWithColors(text, elId, color1, color2) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -44,14 +59,19 @@ export function syncCongratsLogoHeight() {
   const left = document.getElementById('congrats-logo-left');
   const right = document.getElementById('congrats-logo-right');
   if (!overlay || !textBlock || !left || !right) return;
+  syncCongratsOverlayPlatformClass();
 
-  if (overlay.classList.contains('compact')) {
+  if (overlay.classList.contains('mobile-safari')) {
     left.style.height = '';
     right.style.height = '';
     return;
   }
 
-  const height = `${textBlock.offsetHeight}px`;
+  const styles = getComputedStyle(overlay);
+  const minLogoSize = 72;
+  const maxLogoSize = Math.min(window.innerWidth * 0.18, 168);
+  const targetHeight = textBlock.offsetHeight * (overlay.classList.contains('compact') ? 0.72 : 0.84);
+  const height = `${Math.max(minLogoSize, Math.min(maxLogoSize, targetHeight || parseFloat(styles.fontSize) * 2.2))}px`;
   left.style.height = height;
   right.style.height = height;
 }
@@ -61,21 +81,34 @@ export function syncCongratsOverlayLayout() {
   const content = document.getElementById('congrats-content');
   if (!overlay || !content) return;
 
+  syncCongratsOverlayPlatformClass();
   overlay.style.fontSize = '';
+  overlay.style.removeProperty('--congrats-logo-size');
   if (getComputedStyle(overlay).display === 'none') return;
 
   overlay.classList.remove('compact');
-  syncCongratsLogoHeight();
 
-  const maxWidth = Math.max(window.innerWidth - 24, 220);
-  if (content.scrollWidth > maxWidth) {
+  const maxWidth = Math.max(window.innerWidth - 40, 220);
+  const maxHeight = Math.max(Math.min(window.innerHeight * 0.34, 320), 160);
+
+  syncCongratsLogoHeight();
+  if (content.scrollWidth > maxWidth * 0.92) {
     overlay.classList.add('compact');
+    syncCongratsLogoHeight();
   }
 
   let fontSize = parseFloat(getComputedStyle(overlay).fontSize);
-  while (fontSize > 18 && content.scrollWidth > maxWidth) {
+  while (fontSize > 18 && (content.scrollWidth > maxWidth || content.scrollHeight > maxHeight)) {
     fontSize -= 1;
     overlay.style.fontSize = `${fontSize}px`;
+    syncCongratsLogoHeight();
+  }
+
+  fontSize = parseFloat(getComputedStyle(overlay).fontSize);
+  while (fontSize > 14 && (content.scrollWidth > maxWidth || content.scrollHeight > maxHeight)) {
+    fontSize -= 1;
+    overlay.style.fontSize = `${fontSize}px`;
+    syncCongratsLogoHeight();
   }
 
   syncCongratsLogoHeight();
@@ -132,6 +165,7 @@ export function bindAppControls(handlers) {
 export function initializeSharedUi() {
   const defaultSchool = SELECTABLE_SCHOOLS[DEFAULT_SCHOOL_KEY];
   document.title = SITE_CONFIG.meta.title;
+  syncCongratsOverlayPlatformClass();
   const recipientName = document.getElementById('tati-text');
   if (recipientName) recipientName.textContent = SITE_CONFIG.event.recipientName;
   const leftLogo = document.getElementById('congrats-logo-left');
@@ -140,6 +174,6 @@ export function initializeSharedUi() {
   if (rightLogo) rightLogo.src = defaultSchool.logo;
   window.addEventListener('resize', syncCongratsOverlayLayout);
   colorLettersWithColors(SITE_CONFIG.event.congratsHeadline, 'congrats-text', defaultSchool.secondaryCSS, defaultSchool.primaryCSS);
-  colorLettersWithColors(defaultSchool.goText, 'goblue-text', defaultSchool.secondaryCSS, defaultSchool.primaryCSS);
+  colorLettersWithColors(defaultSchool.celebration?.cheerText ?? defaultSchool.goText, 'goblue-text', defaultSchool.secondaryCSS, defaultSchool.primaryCSS);
   setAudioToggleState(true);
 }

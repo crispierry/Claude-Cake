@@ -11,11 +11,24 @@ export const SITE_CONFIG = {
   },
 };
 
+function createSelectableSchool(config) {
+  return {
+    ...config,
+    audioKey: config.key,
+    celebration: {
+      headline: SITE_CONFIG.event.congratsHeadline,
+      cheerText: config.goText,
+      fightSong: config.audio,
+      centerpieceKey: config.monument,
+    },
+  };
+}
+
 export const CAKE_SCHOOLS = [
   { key: 'pennstate', name: 'Penn State', logo: 'logos/pennstate.png', aspect: 5.55, scale: 0.55, fallbackColor: '#041E42' },
   { key: 'rutgers', name: 'Rutgers', logo: 'logos/rutgers.png', aspect: 1.14, scale: 0.85, fallbackColor: '#CC0033' },
   { key: 'uconn', name: 'UConn', logo: 'logos/uconn.png', aspect: 4.63, scale: 0.55, fallbackColor: '#000E2F' },
-  {
+  createSelectableSchool({
     key: 'michigan',
     name: 'Michigan',
     logo: 'logos/michigan.png',
@@ -31,13 +44,13 @@ export const CAKE_SCHOOLS = [
     monument: 'cube',
     revealPlanePosition: { x: 0.85, y: 2.07, z: -0.15 },
     revealLabelX: 680,
-  },
+  }),
   { key: 'syracuse', name: 'Syracuse', logo: 'logos/syracuse.png', aspect: 0.74, scale: 0.85, fallbackColor: '#F76900' },
   { key: 'umass', name: 'UMass', logo: 'logos/umass.png', aspect: 1.22, scale: 0.85, fallbackColor: '#881C1C' },
   { key: 'boston', name: 'Boston U', logo: 'logos/boston.png', aspect: 1.37, scale: 0.85, fallbackColor: '#CC0000' },
   { key: 'loyola', name: 'LMU', logo: 'logos/loyola.png', aspect: 1.71, scale: 0.75, fallbackColor: '#B62B3A' },
   { key: 'delaware', name: 'Delaware', logo: 'logos/delaware.png', aspect: 3.69, scale: 0.55, fallbackColor: '#00539F' },
-  {
+  createSelectableSchool({
     key: 'maryland',
     name: 'Maryland',
     logo: 'logos/maryland.png',
@@ -53,7 +66,7 @@ export const CAKE_SCHOOLS = [
     monument: 'mLetter',
     revealPlanePosition: { x: -0.85, y: 2.07, z: -0.15 },
     revealLabelX: 344,
-  },
+  }),
   { key: 'vermont', name: 'Vermont', logo: 'logos/vermont.png', aspect: 1.02, scale: 0.85, fallbackColor: '#154734' },
   { key: 'hawaii', name: 'Hawaii', logo: 'logos/hawaii.png', aspect: 1.32, scale: 0.85, fallbackColor: '#024731' },
 ];

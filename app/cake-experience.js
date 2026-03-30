@@ -30,44 +30,35 @@ scene.background = new THREE.Color(0xf5f0eb);
 scene.fog = new THREE.FogExp2(0xf5f0eb, 0.008);
 
 // ── Viewport-aware camera setup ──
-// Cake spans y≈0 (platter) to y≈4.5 (candle tip). We place the camera
-// so the full cake fits with breathing room, adjusting for aspect ratio.
-function computeCameraParams() {
-  const aspect = window.innerWidth / window.innerHeight;
-  const cakeMidY = 2.0; // visual center to orbit around
-
-  // In portrait mode, the platter width becomes the constraint,
-  // so we pull the camera further back.
-  let fov, camY, camZ;
-
-  if (aspect >= 1.4) {
-    // Wide landscape
-    fov = 36;
-    camY = 9.0;
-    camZ = 7;
-  } else if (aspect >= 1) {
-    // Landscape / square
-    fov = 38;
-    camY = 9.0;
-    camZ = 7.5;
-  } else if (aspect >= 0.6) {
-    // Moderate portrait (tablet-ish)
-    fov = 44;
-    camY = 9.5;
-    camZ = 9;
-  } else {
-    // Narrow portrait (phone)
-    fov = 50;
-    camY = 10.0;
-    camZ = 10;
-  }
-
-  return { fov, camY, camZ, targetY: cakeMidY };
+// We keep the same hero angle, but compute the camera distance from the
+// actual platter/cake bounds so short or oddly shaped viewports still fit.
+function getViewportAspect() {
+  return window.innerWidth / Math.max(window.innerHeight, 1);
 }
 
-const initCam = computeCameraParams();
-const camera = new THREE.PerspectiveCamera(initCam.fov, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, initCam.camY, initCam.camZ);
+function getViewportFov(aspect = getViewportAspect()) {
+  if (aspect >= 1.4) return 36;
+  if (aspect >= 1) return 38;
+  if (aspect >= 0.6) return 44;
+  return 50;
+}
+
+const DEFAULT_PHASE1_TARGET = new THREE.Vector3(0, 2.0, 0);
+const DEFAULT_PHASE1_VIEW_DIRECTION = new THREE.Vector3(0, 1, 1).normalize();
+const phase1ViewportBounds = new THREE.Box3();
+const phase1ViewportBoundsCenter = new THREE.Vector3();
+const phase1ViewportFitRight = new THREE.Vector3();
+const phase1ViewportFitUp = new THREE.Vector3();
+const phase1ViewportFitTarget = new THREE.Vector3();
+const phase1ViewportFitPosition = new THREE.Vector3();
+const phase1ViewportFitCorner = new THREE.Vector3();
+let phase1ViewportFitObjects = null;
+let lastViewportCameraFit = null;
+
+const initialAspect = getViewportAspect();
+const initialFov = getViewportFov(initialAspect);
+const camera = new THREE.PerspectiveCamera(initialFov, initialAspect, 0.1, 100);
+camera.position.copy(DEFAULT_PHASE1_TARGET).addScaledVector(DEFAULT_PHASE1_VIEW_DIRECTION, 10);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -84,24 +75,166 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = !reducedMotion;
 controls.dampingFactor = reducedMotion ? 0 : 0.05;
 controls.minDistance = 4;
-controls.maxDistance = 20;
-controls.target.set(0, initCam.targetY, 0);
+controls.maxDistance = 32;
+controls.target.copy(DEFAULT_PHASE1_TARGET);
 
-let lastViewportCameraFit = {
-  position: camera.position.clone(),
-  target: controls.target.clone(),
+const isiOsTouchDevice = /iPad|iPhone|iPod/.test(window.navigator.userAgent) ||
+  (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+const pinchZoomFallbackState = {
+  active: false,
+  distance: 0,
+  cameraDistance: 0,
+  panWasEnabled: controls.enablePan,
 };
 
-function buildViewportCameraFit() {
-  const p = computeCameraParams();
+function getTouchDistance(touches) {
+  if (touches.length < 2) return 0;
+  const [firstTouch, secondTouch] = touches;
+  return Math.hypot(
+    firstTouch.clientX - secondTouch.clientX,
+    firstTouch.clientY - secondTouch.clientY
+  );
+}
+
+function applyPinchZoomDistance(nextDistance) {
+  const offset = camera.position.clone().sub(controls.target);
+  const clampedDistance = THREE.MathUtils.clamp(nextDistance, controls.minDistance, controls.maxDistance);
+
+  if (offset.lengthSq() === 0) {
+    offset.copy(DEFAULT_PHASE1_VIEW_DIRECTION);
+  }
+
+  offset.setLength(clampedDistance);
+  camera.position.copy(controls.target).add(offset);
+  controls.update();
+}
+
+if (isiOsTouchDevice) {
+  // Mobile Safari can miss OrbitControls' pointer-based pinch zoom on canvas.
+  controls.touches.TWO = THREE.TOUCH.PAN;
+
+  const resetPinchZoomFallback = () => {
+    pinchZoomFallbackState.active = false;
+    pinchZoomFallbackState.distance = 0;
+    pinchZoomFallbackState.cameraDistance = 0;
+    controls.enablePan = pinchZoomFallbackState.panWasEnabled;
+  };
+
+  renderer.domElement.addEventListener('touchstart', (event) => {
+    if (event.touches.length !== 2) return;
+
+    pinchZoomFallbackState.active = true;
+    pinchZoomFallbackState.distance = getTouchDistance(event.touches);
+    pinchZoomFallbackState.cameraDistance = camera.position.distanceTo(controls.target);
+    pinchZoomFallbackState.panWasEnabled = controls.enablePan;
+    controls.enablePan = false;
+  }, { passive: true });
+
+  renderer.domElement.addEventListener('touchmove', (event) => {
+    if (!pinchZoomFallbackState.active || event.touches.length !== 2) return;
+
+    const currentDistance = getTouchDistance(event.touches);
+    if (currentDistance <= 0 || pinchZoomFallbackState.distance <= 0) return;
+
+    event.preventDefault();
+    applyPinchZoomDistance(
+      pinchZoomFallbackState.cameraDistance * (pinchZoomFallbackState.distance / currentDistance)
+    );
+  }, { passive: false });
+
+  renderer.domElement.addEventListener('touchend', () => {
+    if (pinchZoomFallbackState.active) {
+      resetPinchZoomFallback();
+    }
+  }, { passive: true });
+
+  renderer.domElement.addEventListener('touchcancel', resetPinchZoomFallback, { passive: true });
+}
+
+function cloneViewportCameraFit(fit) {
   return {
-    fov: p.fov,
-    position: new THREE.Vector3(0, p.camY, p.camZ),
-    target: new THREE.Vector3(0, p.targetY, 0),
+    fov: fit.fov,
+    position: fit.position.clone(),
+    target: fit.target.clone(),
   };
 }
 
+function refreshPhase1ViewportBounds() {
+  if (!phase1ViewportFitObjects?.length) return false;
+
+  scene.updateMatrixWorld(true);
+  phase1ViewportBounds.makeEmpty();
+  phase1ViewportFitObjects.forEach((object) => phase1ViewportBounds.expandByObject(object));
+
+  if (phase1ViewportBounds.isEmpty()) return false;
+
+  phase1ViewportBounds.getCenter(phase1ViewportBoundsCenter);
+  return true;
+}
+
+function buildViewportCameraFit() {
+  const aspect = getViewportAspect();
+  const fov = getViewportFov(aspect);
+
+  if (!refreshPhase1ViewportBounds()) {
+    return {
+      fov,
+      position: DEFAULT_PHASE1_TARGET.clone().addScaledVector(DEFAULT_PHASE1_VIEW_DIRECTION, 10),
+      target: DEFAULT_PHASE1_TARGET.clone(),
+    };
+  }
+
+  const tanHalfVerticalFov = Math.tan(THREE.MathUtils.degToRad(fov) * 0.5);
+  const tanHalfHorizontalFov = Math.max(tanHalfVerticalFov * aspect, 0.01);
+
+  phase1ViewportFitRight.crossVectors(new THREE.Vector3(0, 1, 0), DEFAULT_PHASE1_VIEW_DIRECTION).normalize();
+  phase1ViewportFitUp.crossVectors(DEFAULT_PHASE1_VIEW_DIRECTION, phase1ViewportFitRight).normalize();
+  phase1ViewportFitTarget.set(0, phase1ViewportBoundsCenter.y, 0);
+
+  let requiredDistance = 0;
+  const { min, max } = phase1ViewportBounds;
+  const xs = [min.x, max.x];
+  const ys = [min.y, max.y];
+  const zs = [min.z, max.z];
+
+  for (const x of xs) {
+    for (const y of ys) {
+      for (const z of zs) {
+        phase1ViewportFitCorner.set(x, y, z).sub(phase1ViewportFitTarget);
+        const horizontalOffset = Math.abs(phase1ViewportFitCorner.dot(phase1ViewportFitRight));
+        const verticalOffset = Math.abs(phase1ViewportFitCorner.dot(phase1ViewportFitUp));
+        const forwardOffset = phase1ViewportFitCorner.dot(DEFAULT_PHASE1_VIEW_DIRECTION);
+
+        requiredDistance = Math.max(
+          requiredDistance,
+          forwardOffset + horizontalOffset / tanHalfHorizontalFov,
+          forwardOffset + verticalOffset / tanHalfVerticalFov
+        );
+      }
+    }
+  }
+
+  const distance = Math.max(requiredDistance * 1.08, 10);
+  phase1ViewportFitPosition.copy(phase1ViewportFitTarget).addScaledVector(DEFAULT_PHASE1_VIEW_DIRECTION, distance);
+
+  return {
+    fov,
+    position: phase1ViewportFitPosition.clone(),
+    target: phase1ViewportFitTarget.clone(),
+  };
+}
+
+function applyViewportCameraFit(fit) {
+  camera.fov = fit.fov;
+  camera.position.copy(fit.position);
+  controls.target.copy(fit.target);
+  controls.maxDistance = Math.max(32, fit.position.distanceTo(fit.target) * 1.35);
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
 function cameraIsNearViewportFit(fit) {
+  if (!fit) return false;
   return camera.position.distanceTo(fit.position) < 0.75 &&
     controls.target.distanceTo(fit.target) < 0.35;
 }
@@ -1113,6 +1246,11 @@ flameLight.position.copy(flameGroup.position);
 flameLight.position.y += candleGroup.position.y;
 cakeGroup.add(flameLight);
 
+phase1ViewportFitObjects = [table, ridgeOuter, ridgeInner, plate, trayDecoGroup, cakeGroup];
+const initialViewportFit = buildViewportCameraFit();
+applyViewportCameraFit(initialViewportFit);
+lastViewportCameraFit = cloneViewportCameraFit(initialViewportFit);
+
 // ── Interaction ──
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -1661,7 +1799,7 @@ function createFightSongAudio(src) {
 }
 
 const preloadedFightSongs = Object.fromEntries(
-  Object.entries(SELECTABLE_SCHOOLS).map(([key, school]) => [key, createFightSongAudio(school.audio)])
+  Object.entries(SELECTABLE_SCHOOLS).map(([key, school]) => [key, createFightSongAudio(school.celebration?.fightSong ?? school.audio)])
 );
 
 fightSong = preloadedFightSongs[DEFAULT_SCHOOL_KEY];
@@ -2129,9 +2267,13 @@ let shakeTime = 0;
 // The iconic sculpture on U-M campus: a dark steel cube balanced on one vertex, rotating
 // Structure: monumentGroup (translate) → cubeSpinGroup (spins around world Y)
 //            → cubeTiltGroup (static tilt to balance on vertex)
+const CENTERPIECE_START_Y = -5;
+const DEFAULT_CENTERPIECE_SPIN_SPEED = 0.4;
+const celebrationCenterpieces = new Map();
+let activeCenterpiece = null;
 const monumentGroup = new THREE.Group();
 monumentGroup.visible = false;
-monumentGroup.position.y = -5; // starts below scene
+monumentGroup.position.y = CENTERPIECE_START_Y; // starts below scene
 scene.add(monumentGroup);
 
 // Spin group: rotates around world Y axis (OUTER group, so Y = world vertical)
@@ -2338,6 +2480,68 @@ mLetterSpinGroup.add(mLetterGroup);
   mLetterGroup.add(rightBaseSerif);
 })();
 
+function registerCelebrationCenterpiece(key, options) {
+  const centerpiece = {
+    spinSpeed: DEFAULT_CENTERPIECE_SPIN_SPEED,
+    ...options,
+  };
+  celebrationCenterpieces.set(key, centerpiece);
+  return centerpiece;
+}
+
+function setActiveCelebrationCenterpiece(key) {
+  activeCenterpiece = celebrationCenterpieces.get(key) || null;
+  celebrationCenterpieces.forEach(({ root }) => {
+    if (root) root.visible = false;
+  });
+  if (activeCenterpiece?.root) {
+    activeCenterpiece.root.visible = true;
+  }
+}
+
+function getActiveCelebrationCenterpiece() {
+  return activeCenterpiece;
+}
+
+function getActiveCenterpieceRiseTargetY() {
+  return getActiveCelebrationCenterpiece()?.riseTargetY ?? cubeVertexOffset;
+}
+
+function getActiveCenterpieceLookAtY() {
+  return getActiveCelebrationCenterpiece()?.lookAtY ?? cubeVertexOffset;
+}
+
+function updateActiveCelebrationCenterpiece(dt) {
+  const centerpiece = getActiveCelebrationCenterpiece();
+  if (!centerpiece?.spinGroup) return;
+  centerpiece.spinGroup.rotation.y += centerpiece.spinSpeed * dt;
+}
+
+function resetCelebrationCenterpieces() {
+  celebrationCenterpieces.forEach((centerpiece) => {
+    if (centerpiece.root) centerpiece.root.visible = false;
+    if (centerpiece.spinGroup) centerpiece.spinGroup.rotation.set(0, 0, 0);
+    centerpiece.reset?.();
+  });
+}
+
+registerCelebrationCenterpiece('cube', {
+  root: cubeSpinGroup,
+  spinGroup: cubeSpinGroup,
+  riseTargetY: cubeVertexOffset,
+  lookAtY: cubeVertexOffset,
+});
+
+registerCelebrationCenterpiece('mLetter', {
+  root: mLetterSpinGroup,
+  spinGroup: mLetterSpinGroup,
+  riseTargetY: cubeVertexOffset,
+  lookAtY: cubeVertexOffset,
+});
+
+const defaultCelebrationSchool = SELECTABLE_SCHOOLS[DEFAULT_SCHOOL_KEY];
+setActiveCelebrationCenterpiece(defaultCelebrationSchool?.celebration?.centerpieceKey ?? defaultCelebrationSchool?.monument);
+
 // ── Balloons ──
 const balloonGroup = new THREE.Group();
 scene.add(balloonGroup);
@@ -2469,10 +2673,12 @@ window.selectSchoolByKey = function(key) {
 
 function applySchoolTheme() {
   const s = activeSchool;
-  setCongratsMessage('CONGRATULATIONS!', s.secondaryCSS, s.primaryCSS);
-  colorLettersWithColors(s.goText, 'goblue-text', s.secondaryCSS, s.primaryCSS);
+  const celebration = s.celebration || {};
+  setCongratsMessage(celebration.headline ?? SITE_CONFIG.event.congratsHeadline, s.secondaryCSS, s.primaryCSS);
+  colorLettersWithColors(celebration.cheerText ?? s.goText, 'goblue-text', s.secondaryCSS, s.primaryCSS);
   document.getElementById('congrats-logo-left').src = s.logo;
   document.getElementById('congrats-logo-right').src = s.logo;
+  setActiveCelebrationCenterpiece(celebration.centerpieceKey ?? s.monument);
   requestAnimationFrame(syncCongratsOverlayLayout);
   // Swap audio
   try {
@@ -2480,7 +2686,7 @@ function applySchoolTheme() {
       fightSong.pause();
       fightSong.currentTime = 0;
     }
-    fightSong = preloadedFightSongs[s.audioKey] || createFightSongAudio(s.audio);
+    fightSong = preloadedFightSongs[s.audioKey || s.key] || createFightSongAudio(celebration.fightSong ?? s.audio);
     fightSongLoaded = false;
     fightSongPrimed = false;
     if (fightSong) {
@@ -2815,17 +3021,7 @@ function updatePhase2(elapsed, dt) {
       phase2State = 'revealing';
       revealStart = now;
 
-      // Show monument — pick cube or M based on school
       monumentGroup.visible = true;
-      if (activeSchool && activeSchool.monument === 'mLetter') {
-        // Hide cube, show upright spinning M
-        cubeTiltGroup.visible = false;
-        mLetterSpinGroup.visible = true;
-      } else {
-        // Show cube, hide M
-        cubeTiltGroup.visible = true;
-        mLetterSpinGroup.visible = false;
-      }
 
       // Start spotlight
       spotLight.intensity = 0;
@@ -2857,15 +3053,15 @@ function updatePhase2(elapsed, dt) {
     // Monument rises from y=-3 to y=0 over 1.2 seconds
     const riseT = Math.min(1, rT / 1.2);
     const eased = 1 - Math.pow(1 - riseT, 3); // ease-out cubic
-    // Rise so the cube's bottom vertex lands near y=0, center of cube at y=cubeVertexOffset
-    monumentGroup.position.y = -5 + (cubeVertexOffset + 5) * eased;
+    const riseTargetY = getActiveCenterpieceRiseTargetY();
+    monumentGroup.position.y = THREE.MathUtils.lerp(CENTERPIECE_START_Y, riseTargetY, eased);
 
     // Smooth camera transition to eye-level view (flat horizon)
     const camT = Math.min(1, rT / 2.0);
     const camEased = 1 - Math.pow(1 - camT, 3);
     if (cameraStartPos) {
       const targetCamPos = new THREE.Vector3(0, 3, 10);
-      const targetLookAt = new THREE.Vector3(0, cubeVertexOffset, 0);
+      const targetLookAt = new THREE.Vector3(0, getActiveCenterpieceLookAtY(), 0);
       camera.position.lerpVectors(cameraStartPos, targetCamPos, camEased);
       controls.target.lerpVectors(cameraStartTarget, targetLookAt, camEased);
       controls.update();
@@ -2900,9 +3096,7 @@ function updatePhase2(elapsed, dt) {
     updateBalloons(dt, elapsed);
     updatePhase2Confetti(dt);
 
-    // Spin the active monument
-    cubeSpinGroup.rotation.y += 0.4 * dt;
-    mLetterSpinGroup.rotation.y += 0.4 * dt;
+    updateActiveCelebrationCenterpiece(dt);
 
     return;
   }
@@ -2926,7 +3120,8 @@ function resetPhase2() {
   stopWickFuseAudio();
 
   monumentGroup.visible = false;
-  monumentGroup.position.y = -5;
+  monumentGroup.position.y = CENTERPIECE_START_Y;
+  resetCelebrationCenterpieces();
 
 
   shakeAmplitude = 0;
@@ -3120,19 +3315,15 @@ window.addEventListener('resize', () => {
   const nextViewportFit = buildViewportCameraFit();
   const shouldRefitCamera = phase2State === 'idle' && cameraIsNearViewportFit(lastViewportCameraFit);
 
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.fov = nextViewportFit.fov;
-  camera.updateProjectionMatrix();
+  camera.aspect = getViewportAspect();
   renderer.setSize(window.innerWidth, window.innerHeight);
 
   if (shouldRefitCamera) {
-    camera.position.copy(nextViewportFit.position);
-    controls.target.copy(nextViewportFit.target);
-    controls.update();
+    applyViewportCameraFit(nextViewportFit);
+  } else {
+    camera.fov = nextViewportFit.fov;
+    camera.updateProjectionMatrix();
   }
 
-  lastViewportCameraFit = {
-    position: nextViewportFit.position.clone(),
-    target: nextViewportFit.target.clone(),
-  };
+  lastViewportCameraFit = cloneViewportCameraFit(nextViewportFit);
 });
