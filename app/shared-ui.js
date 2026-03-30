@@ -98,22 +98,24 @@ export function syncCongratsOverlayLayout() {
   overlay.classList.remove('compact');
 
   const roomyDesktop = isRoomyDesktopViewport();
-  const maxWidth = Math.max(window.innerWidth - 40, 220);
+  const maxWidth = Math.max(window.innerWidth - 32, 220);
   const maxHeight = Math.max(
     Math.min(window.innerHeight * (roomyDesktop ? 0.26 : 0.34), roomyDesktop ? 240 : 320),
     roomyDesktop ? 120 : 160
   );
 
   syncCongratsLogoHeight();
-  if (content.scrollWidth > maxWidth * 0.96 || content.scrollHeight > maxHeight * 0.96) {
+  if (content.scrollWidth > maxWidth + 2 || content.scrollHeight > maxHeight + 2) {
     overlay.classList.add('compact');
     syncCongratsLogoHeight();
   }
 
   let fontSize = parseFloat(getComputedStyle(overlay).fontSize);
+  const baseFontSize = fontSize;
   const growthLimit = roomyDesktop ? 108 : 96;
+  const minimumFontSize = roomyDesktop ? Math.max(36, baseFontSize * 0.82) : 18;
 
-  while (fontSize < growthLimit && content.scrollWidth < maxWidth * 0.97 && content.scrollHeight < maxHeight * 0.97) {
+  while (fontSize < growthLimit && content.scrollWidth <= maxWidth && content.scrollHeight <= maxHeight) {
     fontSize += 1;
     overlay.style.fontSize = `${fontSize}px`;
     syncCongratsLogoHeight();
@@ -126,14 +128,14 @@ export function syncCongratsOverlayLayout() {
   }
 
   fontSize = parseFloat(getComputedStyle(overlay).fontSize);
-  while (fontSize > 18 && (content.scrollWidth > maxWidth || content.scrollHeight > maxHeight)) {
+  while (fontSize > minimumFontSize && (content.scrollWidth > maxWidth || content.scrollHeight > maxHeight)) {
     fontSize -= 1;
     overlay.style.fontSize = `${fontSize}px`;
     syncCongratsLogoHeight();
   }
 
   fontSize = parseFloat(getComputedStyle(overlay).fontSize);
-  while (fontSize > 14 && (content.scrollWidth > maxWidth || content.scrollHeight > maxHeight)) {
+  while (fontSize > minimumFontSize && (content.scrollWidth > maxWidth || content.scrollHeight > maxHeight)) {
     fontSize -= 1;
     overlay.style.fontSize = `${fontSize}px`;
     syncCongratsLogoHeight();
