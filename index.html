@@ -1948,10 +1948,19 @@ shadowDisc.position.y = -cubeVertexOffset;
 monumentGroup.add(shadowDisc); // on monumentGroup so it doesn't spin
 
 // ── Maryland 3D "M" Letter ──
-// Extruded block M in Maryland Red with Gold bevel, same spin hierarchy as the cube
+// Upright M that spins horizontally on the ground (not tilted like the cube)
+// Own spin group directly under monumentGroup, bypassing cubeTiltGroup
+const mLetterSpinGroup = new THREE.Group();
+mLetterSpinGroup.visible = false;
+monumentGroup.add(mLetterSpinGroup);
+
 const mLetterGroup = new THREE.Group();
-mLetterGroup.visible = false;
-cubeSpinGroup.add(mLetterGroup);
+// Position M so its feet sit at the same ground level as the cube's bottom vertex
+// M total height = legH + 2*serfH = 3.2, center at 0, bottom at -1.6
+// Monument final y = cubeVertexOffset ≈ 2.08, ground at -cubeVertexOffset from monument origin
+// Shift: -(cubeVertexOffset - 1.6) to align feet with ground
+mLetterGroup.position.y = -(cubeSize * Math.sqrt(3) / 2 - 1.6);
+mLetterSpinGroup.add(mLetterGroup);
 
 (function buildMarylandM() {
   // Block "M" built from 5 boxes (two legs, two diagonals, and a base connector)
@@ -2162,6 +2171,8 @@ function selectSchool(config) {
   document.getElementById('logo-select-instructions').style.opacity = '0';
   setTimeout(() => { document.getElementById('logo-select-instructions').style.display = 'none'; }, 500);
   enterPhase2();
+  // Auto-light the fuse after 1 second (no manual tap needed)
+  setTimeout(() => { startWickBurn(); }, 1000);
 }
 
 function applySchoolTheme() {
@@ -2539,13 +2550,13 @@ function updatePhase2(elapsed, dt) {
       // Show monument — pick cube or M based on school
       monumentGroup.visible = true;
       if (activeSchool && activeSchool.monument === 'mLetter') {
-        // Hide cube panels, show M letter
-        cubeSpinGroup.children.forEach(c => { if (c !== mLetterGroup) c.visible = false; });
-        mLetterGroup.visible = true;
+        // Hide cube, show upright spinning M
+        cubeTiltGroup.visible = false;
+        mLetterSpinGroup.visible = true;
       } else {
-        // Show cube, hide M letter
-        cubeSpinGroup.children.forEach(c => { if (c !== mLetterGroup) c.visible = true; });
-        mLetterGroup.visible = false;
+        // Show cube, hide M
+        cubeTiltGroup.visible = true;
+        mLetterSpinGroup.visible = false;
       }
 
       // Start spotlight
@@ -2603,8 +2614,9 @@ function updatePhase2(elapsed, dt) {
     updateBalloons(dt, elapsed);
     updatePhase2Confetti(dt);
 
-    // Cube spins on its balanced vertex — bottom point stays fixed
+    // Spin the active monument
     cubeSpinGroup.rotation.y += 0.4 * dt;
+    mLetterSpinGroup.rotation.y += 0.4 * dt;
 
     return;
   }
