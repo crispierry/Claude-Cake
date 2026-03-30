@@ -21,57 +21,42 @@
   }
   #light-btn {
     position: fixed;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    top: calc(20px + env(safe-area-inset-top, 0px));
     left: 50%;
     transform: translateX(-50%);
-    background: linear-gradient(135deg, #ff6600, #ff9900);
+    background: rgba(0,0,0,0.6);
     color: #fff;
     border: none;
-    padding: 12px 28px;
-    border-radius: 25px;
-    cursor: pointer;
-    font-size: 16px;
-    font-family: 'Georgia', serif;
-    box-shadow: 0 4px 15px rgba(255,102,0,0.4);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  #light-btn:hover { transform: translateX(-50%) scale(1.05); box-shadow: 0 6px 20px rgba(255,102,0,0.6); }
-  #reset-btn {
-    position: fixed;
-    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-    right: calc(20px + env(safe-area-inset-right, 0px));
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    border: 1px solid rgba(255,255,255,0.3);
-    padding: 10px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    display: none;
-    transition: background 0.3s;
-  }
-  #reset-btn:hover { background: rgba(255,255,255,0.3); }
-  #fuse-instructions {
-    position: fixed;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-    left: 50%;
-    transform: translateX(-50%);
-    color: #fff;
-    background: linear-gradient(135deg, #cc2222, #ff4444);
     padding: 14px 32px;
     border-radius: 25px;
+    cursor: pointer;
     font-size: 18px;
     font-weight: bold;
     font-family: 'Georgia', serif;
-    pointer-events: auto;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+    transition: opacity 0.5s, transform 0.2s, box-shadow 0.2s;
+  }
+  #light-btn:hover { transform: translateX(-50%) scale(1.05); box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+  #reset-btn {
+    position: fixed;
+    top: calc(20px + env(safe-area-inset-top, 0px));
+    right: calc(20px + env(safe-area-inset-right, 0px));
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    border: none;
+    padding: 14px 32px;
+    border-radius: 25px;
     cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    font-family: 'Georgia', serif;
     text-align: center;
     display: none;
-    border: none;
-    box-shadow: 0 4px 15px rgba(204,34,34,0.4);
-    transition: opacity 0.5s, transform 0.3s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+    transition: opacity 0.5s, transform 0.2s, box-shadow 0.2s;
   }
-  #fuse-instructions:hover { transform: translateX(-50%) scale(1.05); box-shadow: 0 6px 20px rgba(204,34,34,0.6); }
+  #reset-btn:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
   #white-flash {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -82,12 +67,13 @@
     z-index: 100;
   }
   #congrats-overlay {
+    --base-congrats-size: clamp(34px, 6vw, 64px);
     position: fixed;
     top: 8%;
     left: 0;
     width: 100%;
     transform: scale(0);
-    font-size: clamp(28px, 5vw, 52px);
+    font-size: var(--base-congrats-size);
     font-weight: bold;
     font-family: 'Georgia', serif;
     text-shadow: 0 2px 8px rgba(0,0,0,0.6);
@@ -98,9 +84,43 @@
     line-height: 1.3;
     transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s;
   }
+  #congrats-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 2vw, 24px);
+    max-width: min(96vw, 1200px);
+    margin: 0 auto;
+    padding: 0 10px;
+    box-sizing: border-box;
+  }
+  .congrats-logo {
+    height: 172px;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+  }
+  #congrats-text-block {
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  #tati-text {
+    font-size: 44px;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+  #congrats-text,
+  #goblue-text {
+    font-size: 1em;
+  }
+  #congrats-overlay.compact .congrats-logo {
+    display: none;
+  }
+  #congrats-overlay.compact {
+    line-height: 1.2;
+  }
   #logo-select-instructions {
     position: fixed;
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    top: calc(20px + env(safe-area-inset-top, 0px));
     left: 50%;
     transform: translateX(-50%);
     color: #fff;
@@ -122,13 +142,18 @@
 <div id="title" style="display:none;"></div>
 <button id="light-btn" onclick="startBurn()">Light the Candle</button>
 <button id="reset-btn" onclick="resetCake()">Reset</button>
-<button id="fuse-instructions" onclick="window.lightTheFuse && window.lightTheFuse()">Light the Fuse!</button>
 <div id="white-flash"></div>
 <div id="logo-select-instructions">Click a school logo on the cake!</div>
-<button id="audio-toggle" onclick="toggleFightSong()" style="display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); right:calc(20px + env(safe-area-inset-right, 0px)); z-index:10000; width:90px; height:90px; border-radius:50%; border:3px solid rgba(255,203,5,0.6); background:rgba(0,39,76,0.95); color:#FFCB05; font-size:36px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.5); transition:opacity 0.3s, transform 0.15s; -webkit-tap-highlight-color:transparent;">&#9208;</button>
+<button id="audio-toggle" type="button" onclick="toggleFightSong()" aria-label="Pause fight song" style="display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); right:calc(20px + env(safe-area-inset-right, 0px)); z-index:10000; width:90px; height:90px; border-radius:50%; border:3px solid rgba(255,203,5,0.6); background:rgba(0,39,76,0.95); color:#FFCB05; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.5); transition:opacity 0.3s, transform 0.15s; -webkit-tap-highlight-color:transparent; align-items:center; justify-content:center; touch-action:manipulation;"></button>
 <div id="congrats-overlay">
-  <div id="congrats-text-block" style="max-width:100vw; padding:0 16px; box-sizing:border-box;">
-    <span id="congrats-text"></span>
+  <div id="congrats-content">
+    <img src="logos/michigan.png" id="congrats-logo-left" class="congrats-logo" alt="">
+    <div id="congrats-text-block">
+      <span id="congrats-text"></span><br>
+      <span id="tati-text">Tati</span><br>
+      <span id="goblue-text"></span>
+    </div>
+    <img src="logos/michigan.png" id="congrats-logo-right" class="congrats-logo" alt="">
   </div>
 </div>
 <script>
@@ -145,8 +170,58 @@ function colorLettersWithColors(text, elId, color1, color2) {
   }
   el.innerHTML = html;
 }
+
+function setCongratsMessage(text, color1, color2) {
+  colorLettersWithColors(text, 'congrats-text', color1, color2);
+  requestAnimationFrame(syncCongratsOverlayLayout);
+}
+
+function syncCongratsLogoHeight() {
+  const overlay = document.getElementById('congrats-overlay');
+  const textBlock = document.getElementById('congrats-text-block');
+  const left = document.getElementById('congrats-logo-left');
+  const right = document.getElementById('congrats-logo-right');
+  if (!overlay || !textBlock || !left || !right) return;
+  if (overlay.classList.contains('compact')) {
+    left.style.height = '';
+    right.style.height = '';
+    return;
+  }
+  const h = `${textBlock.offsetHeight}px`;
+  left.style.height = h;
+  right.style.height = h;
+}
+
+function syncCongratsOverlayLayout() {
+  const overlay = document.getElementById('congrats-overlay');
+  const content = document.getElementById('congrats-content');
+  if (!overlay || !content) return;
+
+  overlay.style.fontSize = '';
+  if (getComputedStyle(overlay).display === 'none') return;
+
+  overlay.classList.remove('compact');
+  syncCongratsLogoHeight();
+
+  const maxWidth = Math.max(window.innerWidth - 24, 220);
+  if (content.scrollWidth > maxWidth) {
+    overlay.classList.add('compact');
+  }
+
+  let fontSize = parseFloat(getComputedStyle(overlay).fontSize);
+  while (fontSize > 18 && content.scrollWidth > maxWidth) {
+    fontSize -= 1;
+    overlay.style.fontSize = `${fontSize}px`;
+  }
+
+  syncCongratsLogoHeight();
+}
+
+window.addEventListener('resize', syncCongratsOverlayLayout);
+
 // Default Michigan colors (will be overridden by applySchoolTheme on unlock)
-colorLettersWithColors('CONGRATULATIONS TO TACHI.', 'congrats-text', '#FFCB05', '#00274C');
+colorLettersWithColors('CONGRATULATIONS!', 'congrats-text', '#FFCB05', '#00274C');
+colorLettersWithColors('GO BLUE!', 'goblue-text', '#FFCB05', '#00274C');
 </script>
 
 <script type="importmap">
@@ -1389,7 +1464,9 @@ function stopFireAudio() {
 
 function playExplosionBoom() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const sharedCtx = ensurePhase2AudioContext();
+    const ownsContext = !sharedCtx;
+    const ctx = sharedCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume();
     // Low frequency boom - noise burst shaped with fast attack, slow decay
     const duration = 1.5;
@@ -1419,7 +1496,9 @@ function playExplosionBoom() {
     lp.connect(gain);
     gain.connect(ctx.destination);
     src.start();
-    src.onended = () => ctx.close().catch(() => {});
+    if (ownsContext) {
+      src.onended = () => ctx.close().catch(() => {});
+    }
   } catch(e) {}
 }
 
@@ -1722,14 +1801,33 @@ let fightSongPrimed = false;
 // ── Audio: Preload fight song ──
 let fightSong = null;
 let fightSongLoaded = false;
-try {
-  fightSong = new Audio('https://archive.org/download/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors.mp3');
-  fightSong.preload = 'auto';
-  fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
-  fightSong.addEventListener('canplay', () => { fightSongLoaded = true; }, { once: true });
-  if (fightSong.readyState >= 3) fightSongLoaded = true;
-  fightSong.load();
-} catch(e) { /* no audio, that's fine */ }
+const michiganFightSongUrl = 'https://archive.org/download/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors.mp3';
+const marylandFightSongUrl = 'maryland-fight.mp3';
+
+function createFightSongAudio(src) {
+  try {
+    const audio = new Audio(src);
+    audio.preload = 'auto';
+    audio.addEventListener('canplaythrough', () => {
+      if (fightSong === audio) fightSongLoaded = true;
+    });
+    audio.addEventListener('canplay', () => {
+      if (fightSong === audio) fightSongLoaded = true;
+    });
+    audio.load();
+    return audio;
+  } catch (e) {
+    return null;
+  }
+}
+
+const preloadedFightSongs = {
+  michigan: createFightSongAudio(michiganFightSongUrl),
+  maryland: createFightSongAudio(marylandFightSongUrl),
+};
+
+fightSong = preloadedFightSongs.michigan;
+if (fightSong && fightSong.readyState >= 2) fightSongLoaded = true;
 
 function ensurePhase2AudioContext() {
   try {
@@ -1797,8 +1895,9 @@ function startFightSongPlayback() {
       fightSong.addEventListener('canplay', playSong, { once: true });
       fightSong.load();
     }
-    document.getElementById('audio-toggle').style.display = 'block';
-    document.getElementById('audio-toggle').innerHTML = '&#9208;';
+    const audioToggle = document.getElementById('audio-toggle');
+    audioToggle.style.display = 'flex';
+    setAudioToggleState(true);
   } catch (e) {}
 }
 
@@ -1911,17 +2010,25 @@ function stopWickFuseAudio() {
   }, 180);
 }
 
+function setAudioToggleState(isPlaying) {
+  const btn = document.getElementById('audio-toggle');
+  if (!btn) return;
+  btn.innerHTML = isPlaying
+    ? '<svg viewBox="0 0 24 24" width="38" height="38" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"></rect><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"></rect></svg>'
+    : '<svg viewBox="0 0 24 24" width="38" height="38" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg>';
+  btn.setAttribute('aria-label', isPlaying ? 'Pause fight song' : 'Play fight song');
+}
+
 window.toggleFightSong = function() {
   if (!fightSong) return;
   if (fireAudioCtx && fireAudioCtx.state === 'suspended') fireAudioCtx.resume();
   if (phase2AudioContext && phase2AudioContext.state === 'suspended') phase2AudioContext.resume();
-  const btn = document.getElementById('audio-toggle');
   if (fightSong.paused) {
     fightSong.play().catch(() => {});
-    btn.innerHTML = '&#9208;'; // pause icon
+    setAudioToggleState(true);
   } else {
     fightSong.pause();
-    btn.innerHTML = '&#9654;'; // play icon
+    setAudioToggleState(false);
   }
 };
 
@@ -2507,7 +2614,8 @@ const schoolConfig = {
     secondaryCSS: '#FFCB05',
     goText: 'GO BLUE!',
     logo: 'logos/michigan.png',
-    audio: 'https://archive.org/download/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors/Royal_Oak_Concert_Band_Let_The_Games_Begin_The_Victors.mp3',
+    audio: michiganFightSongUrl,
+    audioKey: 'michigan',
     monument: 'cube', // use the Endover Cube
   },
   maryland: {
@@ -2517,7 +2625,8 @@ const schoolConfig = {
     secondaryCSS: '#FCD116',
     goText: 'GO TERRAPINS!',
     logo: 'logos/maryland.png',
-    audio: 'maryland-fight.mp3',
+    audio: marylandFightSongUrl,
+    audioKey: 'maryland',
     monument: 'mLetter', // use the 3D M
   },
 };
@@ -2546,20 +2655,25 @@ function selectSchool(config) {
 
 function applySchoolTheme() {
   const s = activeSchool;
-  colorLettersWithColors('CONGRATULATIONS TO TACHI.', 'congrats-text', s.secondaryCSS, s.primaryCSS);
+  setCongratsMessage('CONGRATULATIONS!', s.secondaryCSS, s.primaryCSS);
+  colorLettersWithColors(s.goText, 'goblue-text', s.secondaryCSS, s.primaryCSS);
+  document.getElementById('congrats-logo-left').src = s.logo;
+  document.getElementById('congrats-logo-right').src = s.logo;
+  requestAnimationFrame(syncCongratsOverlayLayout);
   // Swap audio
   try {
     if (fightSong) {
       fightSong.pause();
       fightSong.currentTime = 0;
     }
-    fightSong = new Audio(s.audio);
-    fightSong.preload = 'auto';
+    fightSong = preloadedFightSongs[s.audioKey] || createFightSongAudio(s.audio);
     fightSongLoaded = false;
     fightSongPrimed = false;
-    fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
-    fightSong.addEventListener('canplay', () => { fightSongLoaded = true; }, { once: true });
-    fightSong.load();
+    if (fightSong) {
+      fightSong.currentTime = 0;
+      fightSongLoaded = fightSong.readyState >= 2;
+      if (!fightSongLoaded) fightSong.load();
+    }
   } catch(e) {}
 }
 
@@ -2701,10 +2815,6 @@ function enterPhase2() {
   wickHitbox.visible = true;
   wickGlow.visible = true;
 
-  // Show fuse instruction
-  document.getElementById('fuse-instructions').style.display = 'block';
-  document.getElementById('fuse-instructions').style.opacity = '1';
-
   // Hide reset button during Phase 2
   document.getElementById('reset-btn').style.display = 'none';
 }
@@ -2732,10 +2842,6 @@ function startWickBurn() {
   wickGlow.visible = false;
   wickHitbox.visible = false;
   startWickFuseAudio();
-
-  // Hide fuse instruction
-  document.getElementById('fuse-instructions').style.opacity = '0';
-  setTimeout(() => { document.getElementById('fuse-instructions').style.display = 'none'; }, 500);
 }
 
 // ── Hide Phase 1 cake elements for explosion ──
@@ -2776,11 +2882,9 @@ function updatePhase2(elapsed, dt) {
     wickGlow.material.opacity = 0.4 + Math.sin(elapsed * 4) * 0.3;
     wickGlow.scale.setScalar(1.0 + Math.sin(elapsed * 3) * 0.2);
 
-    // After 10s, pulse more intensely + bounce text
+    // After 10s, pulse more intensely
     if (readyElapsed > 10) {
       wickGlow.material.opacity = 0.5 + Math.sin(elapsed * 8) * 0.4;
-      const fuseEl = document.getElementById('fuse-instructions');
-      fuseEl.style.transform = `translateX(-50%) scale(${1.0 + Math.sin(elapsed * 4) * 0.1})`;
     }
     // Auto-light after 20s
     if (readyElapsed > 20) {
@@ -2965,6 +3069,7 @@ function updatePhase2(elapsed, dt) {
       // Show congratulations text
       const congrats = document.getElementById('congrats-overlay');
       congrats.style.display = 'block';
+      syncCongratsOverlayLayout();
       setTimeout(() => { congrats.style.transform = 'scale(1)'; }, 50);
 
       // Show reset button
@@ -3030,7 +3135,6 @@ function resetPhase2() {
   document.getElementById('white-flash').style.display = 'none';
   document.getElementById('congrats-overlay').style.display = 'none';
   document.getElementById('congrats-overlay').style.transform = 'scale(0)';
-  document.getElementById('fuse-instructions').style.display = 'none';
 
   // Stop fight song
   if (fightSong) {
