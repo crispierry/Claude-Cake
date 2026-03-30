@@ -8,20 +8,6 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { overflow: hidden; background: #f5f0eb; font-family: 'Georgia', serif; position: fixed; inset: 0; width: 100%; height: 100%; }
   canvas { display: block; touch-action: none; }
-  #instructions {
-    position: fixed;
-    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-    left: 50%;
-    transform: translateX(-50%);
-    color: #fff;
-    background: rgba(0,0,0,0.5);
-    padding: 12px 24px;
-    border-radius: 20px;
-    font-size: 14px;
-    pointer-events: none;
-    transition: opacity 0.5s;
-    text-align: center;
-  }
   #title {
     position: fixed;
     top: calc(20px + env(safe-area-inset-top, 0px));
@@ -134,7 +120,6 @@
 <body>
 
 <div id="title" style="display:none;"></div>
-<div id="instructions">Drag to rotate &bull; Scroll to zoom &bull; Click the candle to light it</div>
 <button id="light-btn" onclick="startBurn()">Light the Candle</button>
 <button id="reset-btn" onclick="resetCake()">Reset</button>
 <button id="fuse-instructions" onclick="window.lightTheFuse && window.lightTheFuse()">Light the Fuse!</button>
@@ -142,10 +127,8 @@
 <div id="logo-select-instructions">Click a school logo on the cake!</div>
 <button id="audio-toggle" onclick="toggleFightSong()" style="display:none; position:fixed; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); right:calc(20px + env(safe-area-inset-right, 0px)); z-index:10000; width:90px; height:90px; border-radius:50%; border:3px solid rgba(255,203,5,0.6); background:rgba(0,39,76,0.95); color:#FFCB05; font-size:36px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.5); transition:opacity 0.3s, transform 0.15s; -webkit-tap-highlight-color:transparent;">&#9208;</button>
 <div id="congrats-overlay">
-  <div style="display:flex; align-items:center; justify-content:center; gap:clamp(12px, 2vw, 24px); max-width:100vw; padding:0 10px; box-sizing:border-box;">
-    <img src="logos/michigan.png" id="congrats-logo-left" style="height:172px; flex-shrink:0; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
-    <div id="congrats-text-block" style="flex-shrink:1; min-width:0;"><span id="congrats-text"></span><br><span id="tati-text" style="font-size:44px; color:#fff; text-shadow: 0 2px 8px rgba(0,0,0,0.6);">Tati</span><br><span id="goblue-text" style="font-size:36px"></span></div>
-    <img src="logos/michigan.png" id="congrats-logo-right" style="height:172px; flex-shrink:0; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));" alt="">
+  <div id="congrats-text-block" style="max-width:100vw; padding:0 16px; box-sizing:border-box;">
+    <span id="congrats-text"></span>
   </div>
 </div>
 <script>
@@ -163,21 +146,7 @@ function colorLettersWithColors(text, elId, color1, color2) {
   el.innerHTML = html;
 }
 // Default Michigan colors (will be overridden by applySchoolTheme on unlock)
-colorLettersWithColors('CONGRATULATIONS!', 'congrats-text', '#FFCB05', '#00274C');
-colorLettersWithColors('GO BLUE!', 'goblue-text', '#FFCB05', '#00274C');
-
-// Match logo height to the text block (from top of CONGRATULATIONS to bottom of GO BLUE)
-function matchLogoHeight() {
-  const textBlock = document.getElementById('congrats-text-block');
-  const left = document.getElementById('congrats-logo-left');
-  const right = document.getElementById('congrats-logo-right');
-  if (textBlock && left && right) {
-    const h = textBlock.offsetHeight + 'px';
-    left.style.height = h;
-    right.style.height = h;
-  }
-}
-window.addEventListener('resize', matchLogoHeight);
+colorLettersWithColors('CONGRATULATIONS TO TACHI.', 'congrats-text', '#FFCB05', '#00274C');
 </script>
 
 <script type="importmap">
@@ -1468,8 +1437,7 @@ function startBurn() {
   // Kick fight song loading early (user gesture context helps on mobile)
   if (fightSong && !fightSongLoaded) fightSong.load();
 
-  // Hide instruction text and light button
-  document.getElementById('instructions').style.opacity = '0';
+  // Hide the light button
   document.getElementById('light-btn').style.display = 'none';
 
   // After phase 1, prompt user to click a school logo
@@ -1622,12 +1590,16 @@ function launchConfetti() {
     // Platter surface is at y ≈ 0.15, radius ≈ 6
     const xz = Math.sqrt(mesh.position.x * mesh.position.x + mesh.position.z * mesh.position.z);
     let landY;
+    let surface;
     if (xz < 2.5) {
       landY = 2.1 + Math.random() * 0.05; // land on cake top
+      surface = 'cake';
     } else if (xz < 5.8) {
       landY = 0.15 + Math.random() * 0.05; // land on platter
+      surface = 'ground';
     } else {
       landY = 0.1 + Math.random() * 0.05; // land on platter edge
+      surface = 'ground';
     }
 
     confetti3D.push({
@@ -1642,6 +1614,7 @@ function launchConfetti() {
       },
       landed: false,
       landY,
+      surface,
       delay: Math.random() * 1.5, // stagger the start (0-1.5 seconds)
       started: false,
     });
@@ -1687,11 +1660,37 @@ function updateConfetti3D(dt, elapsed) {
   }
 }
 
+function disposeConfettiPiece(p) {
+  confettiGroup.remove(p.mesh);
+  p.mesh.geometry.dispose();
+  p.mesh.material.dispose();
+}
+
+function settleGroundConfetti() {
+  const grounded = [];
+  for (const p of confetti3D) {
+    if (p.surface === 'cake') {
+      disposeConfettiPiece(p);
+      continue;
+    }
+    p.started = true;
+    p.landed = true;
+    p.vx = 0;
+    p.vy = 0;
+    p.vz = 0;
+    p.mesh.visible = true;
+    p.mesh.position.y = p.landY;
+    p.mesh.rotation.x = -Math.PI / 2 + (Math.random() - 0.5) * 0.3;
+    p.mesh.rotation.z = Math.random() * Math.PI * 2;
+    grounded.push(p);
+  }
+  confetti3D.length = 0;
+  confetti3D.push(...grounded);
+}
+
 function clearConfetti3D() {
   for (const p of confetti3D) {
-    confettiGroup.remove(p.mesh);
-    p.mesh.geometry.dispose();
-    p.mesh.material.dispose();
+    disposeConfettiPiece(p);
   }
   confetti3D.length = 0;
   confettiTriggered = false;
@@ -1712,6 +1711,13 @@ let cameraStartPos = null;
 let cameraStartTarget = null;
 let wickReadyTime = 0;
 let phase2AudioContext = null;
+let wickFuseNoiseSource = null;
+let wickFuseGain = null;
+let wickFuseLfo = null;
+let wickFuseLfoGain = null;
+let wickFuseCrackleInterval = null;
+let wickFuseActive = false;
+let fightSongPrimed = false;
 
 // ── Audio: Preload fight song ──
 let fightSong = null;
@@ -1725,9 +1731,190 @@ try {
   fightSong.load();
 } catch(e) { /* no audio, that's fine */ }
 
+function ensurePhase2AudioContext() {
+  try {
+    if (!phase2AudioContext) {
+      phase2AudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (phase2AudioContext.state === 'suspended') phase2AudioContext.resume();
+    return phase2AudioContext;
+  } catch (e) {
+    return null;
+  }
+}
+
+function primeFightSongPlayback() {
+  if (!fightSong || fightSongPrimed) return;
+  try {
+    const primedSong = fightSong;
+    primedSong.muted = true;
+    primedSong.volume = 0;
+    const resetPrimedSong = () => {
+      if (fightSong !== primedSong) return;
+      if (phase2State === 'idle' || phase2State === 'wickReady') {
+        primedSong.pause();
+        primedSong.currentTime = 0;
+      }
+      primedSong.muted = false;
+      primedSong.volume = 1;
+      fightSongPrimed = true;
+    };
+    const playPromise = primedSong.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise.then(() => {
+        resetPrimedSong();
+      }).catch(() => {
+        if (fightSong !== primedSong) return;
+        primedSong.muted = false;
+        primedSong.volume = 1;
+      });
+    } else {
+      resetPrimedSong();
+    }
+  } catch (e) {
+    try {
+      if (fightSong) {
+        fightSong.muted = false;
+        fightSong.volume = 1;
+      }
+    } catch (inner) {}
+  }
+}
+
+function startFightSongPlayback() {
+  if (!fightSong) return;
+  try {
+    fightSongLoaded = true;
+    fightSong.muted = false;
+    fightSong.volume = 1;
+    fightSong.currentTime = 0;
+    const playSong = () => {
+      fightSong.play().catch(() => {});
+    };
+    if (fightSong.readyState >= 2) {
+      playSong();
+    } else {
+      fightSong.addEventListener('canplay', playSong, { once: true });
+      fightSong.load();
+    }
+    document.getElementById('audio-toggle').style.display = 'block';
+    document.getElementById('audio-toggle').innerHTML = '&#9208;';
+  } catch (e) {}
+}
+
+function startWickFuseAudio() {
+  const ctx = ensurePhase2AudioContext();
+  if (!ctx || wickFuseActive) return;
+
+  wickFuseActive = true;
+
+  const bufferSize = ctx.sampleRate * 2;
+  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+  wickFuseNoiseSource = ctx.createBufferSource();
+  wickFuseNoiseSource.buffer = noiseBuffer;
+  wickFuseNoiseSource.loop = true;
+
+  const highpass = ctx.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.frequency.value = 900;
+
+  const bandpass = ctx.createBiquadFilter();
+  bandpass.type = 'bandpass';
+  bandpass.frequency.value = 2200;
+  bandpass.Q.value = 1.1;
+
+  wickFuseGain = ctx.createGain();
+  wickFuseGain.gain.value = 0.0001;
+
+  wickFuseNoiseSource.connect(highpass);
+  highpass.connect(bandpass);
+  bandpass.connect(wickFuseGain);
+  wickFuseGain.connect(ctx.destination);
+
+  wickFuseLfo = ctx.createOscillator();
+  wickFuseLfo.type = 'triangle';
+  wickFuseLfo.frequency.value = 7;
+  wickFuseLfoGain = ctx.createGain();
+  wickFuseLfoGain.gain.value = 260;
+  wickFuseLfo.connect(wickFuseLfoGain);
+  wickFuseLfoGain.connect(bandpass.frequency);
+
+  const now = ctx.currentTime;
+  wickFuseGain.gain.exponentialRampToValueAtTime(0.05, now + 0.04);
+  wickFuseNoiseSource.start();
+  wickFuseLfo.start();
+
+  wickFuseCrackleInterval = setInterval(() => {
+    if (!wickFuseActive || !phase2AudioContext) return;
+    if (Math.random() > 0.55) return;
+
+    const burstLen = 0.008 + Math.random() * 0.018;
+    const burstFrames = Math.max(1, Math.floor(phase2AudioContext.sampleRate * burstLen));
+    const burstBuffer = phase2AudioContext.createBuffer(1, burstFrames, phase2AudioContext.sampleRate);
+    const burstData = burstBuffer.getChannelData(0);
+    for (let i = 0; i < burstFrames; i++) {
+      const env = Math.exp(-i / (burstFrames * 0.12));
+      burstData[i] = (Math.random() * 2 - 1) * env;
+    }
+
+    const burstSource = phase2AudioContext.createBufferSource();
+    burstSource.buffer = burstBuffer;
+
+    const burstFilter = phase2AudioContext.createBiquadFilter();
+    burstFilter.type = 'bandpass';
+    burstFilter.frequency.value = 2600 + Math.random() * 2200;
+    burstFilter.Q.value = 2.5;
+
+    const burstGain = phase2AudioContext.createGain();
+    burstGain.gain.value = 0.02 + Math.random() * 0.03;
+
+    burstSource.connect(burstFilter);
+    burstFilter.connect(burstGain);
+    burstGain.connect(phase2AudioContext.destination);
+    burstSource.start();
+  }, 45);
+}
+
+function stopWickFuseAudio() {
+  if (wickFuseCrackleInterval) {
+    clearInterval(wickFuseCrackleInterval);
+    wickFuseCrackleInterval = null;
+  }
+  if (!wickFuseActive) return;
+
+  wickFuseActive = false;
+
+  const ctx = phase2AudioContext;
+  if (ctx && wickFuseGain) {
+    const now = ctx.currentTime;
+    try {
+      wickFuseGain.gain.cancelScheduledValues(now);
+      wickFuseGain.gain.setValueAtTime(Math.max(wickFuseGain.gain.value, 0.0001), now);
+      wickFuseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    } catch (e) {}
+  }
+
+  setTimeout(() => {
+    if (wickFuseNoiseSource) {
+      try { wickFuseNoiseSource.stop(); } catch (e) {}
+      wickFuseNoiseSource = null;
+    }
+    if (wickFuseLfo) {
+      try { wickFuseLfo.stop(); } catch (e) {}
+      wickFuseLfo = null;
+    }
+    wickFuseLfoGain = null;
+    wickFuseGain = null;
+  }, 180);
+}
+
 window.toggleFightSong = function() {
   if (!fightSong) return;
   if (fireAudioCtx && fireAudioCtx.state === 'suspended') fireAudioCtx.resume();
+  if (phase2AudioContext && phase2AudioContext.state === 'suspended') phase2AudioContext.resume();
   const btn = document.getElementById('audio-toggle');
   if (fightSong.paused) {
     fightSong.play().catch(() => {});
@@ -2349,23 +2536,8 @@ function selectSchool(config) {
   document.getElementById('logo-select-instructions').style.opacity = '0';
   setTimeout(() => { document.getElementById('logo-select-instructions').style.display = 'none'; }, 500);
 
-  // Start fight song immediately in user gesture context (volume 0, will ramp during wick burn)
-  // This unlocks autoplay - the setTimeout for startWickBurn would break the gesture chain
-  if (fightSong) {
-    fightSong.volume = 0;
-    fightSong.currentTime = 0;
-    fightSong.play().catch((err) => {
-      // If audio isn't loaded yet, retry when it is
-      fightSong.addEventListener('canplay', () => {
-        fightSong.volume = 0;
-        fightSong.play().catch(() => {});
-      }, { once: true });
-      fightSong.load();
-    });
-    fightSongLoaded = true;
-    document.getElementById('audio-toggle').style.display = 'block';
-    document.getElementById('audio-toggle').innerHTML = '&#9208;';
-  }
+  ensurePhase2AudioContext();
+  primeFightSongPlayback();
 
   enterPhase2();
   // Auto-light the fuse after 1 second (no manual tap needed)
@@ -2374,15 +2546,17 @@ function selectSchool(config) {
 
 function applySchoolTheme() {
   const s = activeSchool;
-  colorLettersWithColors('CONGRATULATIONS!', 'congrats-text', s.secondaryCSS, s.primaryCSS);
-  colorLettersWithColors(s.goText, 'goblue-text', s.secondaryCSS, s.primaryCSS);
-  document.getElementById('congrats-logo-left').src = s.logo;
-  document.getElementById('congrats-logo-right').src = s.logo;
+  colorLettersWithColors('CONGRATULATIONS TO TACHI.', 'congrats-text', s.secondaryCSS, s.primaryCSS);
   // Swap audio
   try {
+    if (fightSong) {
+      fightSong.pause();
+      fightSong.currentTime = 0;
+    }
     fightSong = new Audio(s.audio);
     fightSong.preload = 'auto';
     fightSongLoaded = false;
+    fightSongPrimed = false;
     fightSong.addEventListener('canplaythrough', () => { fightSongLoaded = true; }, { once: true });
     fightSong.addEventListener('canplay', () => { fightSongLoaded = true; }, { once: true });
     fightSong.load();
@@ -2455,8 +2629,7 @@ function launchPhase2Confetti() {
     );
     mesh.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
     phase2ConfettiGroup.add(mesh);
-    const xz = Math.sqrt(mesh.position.x ** 2 + mesh.position.z ** 2);
-    const landY = xz < 3 ? 0.5 : 0.15 + Math.random() * 0.05;
+    const landY = 0.12 + Math.random() * 0.08;
     phase2Confetti.push({
       mesh,
       vy: -(1.5 + Math.random() * 1.0),
@@ -2558,27 +2731,11 @@ function startWickBurn() {
   wickBurnStart = performance.now() / 1000;
   wickGlow.visible = false;
   wickHitbox.visible = false;
+  startWickFuseAudio();
 
   // Hide fuse instruction
   document.getElementById('fuse-instructions').style.opacity = '0';
   setTimeout(() => { document.getElementById('fuse-instructions').style.display = 'none'; }, 500);
-
-  // Ensure fight song is playing (may already be started from selectSchool gesture)
-  if (fightSong) {
-    fightSongLoaded = true;
-    fightSong.volume = 0;
-    if (fightSong.paused) {
-      fightSong.currentTime = 0;
-      fightSong.play().catch(() => {
-        fightSong.addEventListener('canplay', () => {
-          fightSong.play().catch(() => {});
-        }, { once: true });
-        fightSong.load();
-      });
-    }
-    document.getElementById('audio-toggle').style.display = 'block';
-    document.getElementById('audio-toggle').innerHTML = '&#9208;';
-  }
 }
 
 // ── Hide Phase 1 cake elements for explosion ──
@@ -2595,16 +2752,7 @@ function hidePhase1Elements() {
   wickTube.visible = false;
   trayDecoGroup.visible = false;
 
-  // Re-launch ALL Phase 1 confetti (blow it up and let it fall off screen)
-  for (const p of confetti3D) {
-    p.landed = false;
-    p.vy = 3 + Math.random() * 5;
-    p.vx = (Math.random() - 0.5) * 3;
-    p.vz = (Math.random() - 0.5) * 3;
-    p.started = true;
-    p.mesh.visible = true;
-    p.landY = -5; // let them fall off screen
-  }
+  settleGroundConfetti();
 }
 
 // ── Update Phase 2 pointerup listener ──
@@ -2652,13 +2800,9 @@ function updatePhase2(elapsed, dt) {
     if (Math.random() < 0.4) spawnSpark(burnPt);
     updateSparks(dt);
 
-    // Ramp fight song volume during wick burn
-    if (fightSong && fightSongLoaded) {
-      fightSong.volume = Math.min(0.3, wickT * 0.3);
-    }
-
     // Wick fully burned → slow-mo
     if (wickT >= 1.0) {
+      stopWickFuseAudio();
       phase2State = 'slowMo';
       slowMoStart = now;
       clearSparks();
@@ -2677,15 +2821,13 @@ function updatePhase2(elapsed, dt) {
     if (Math.random() < 0.6) spawnSpark(tntGroup.position.clone().setY(0.5));
     updateSparks(dt);
 
-    // Drop fight song volume for tension
-    if (fightSong && fightSongLoaded) try { fightSong.volume = Math.max(0.05, 0.3 - slowT * 0.25); } catch(e) {}
-
     if (slowT >= 1.0) {
       // BOOM
       phase2State = 'exploding';
       explosionStart = now;
       tntMat.emissive.setRGB(0, 0, 0);
       clearSparks();
+      stopWickFuseAudio();
 
       // White flash
       const flash = document.getElementById('white-flash');
@@ -2706,8 +2848,6 @@ function updatePhase2(elapsed, dt) {
       // Explosion boom sound
       playExplosionBoom();
 
-      // Fight song full volume
-      if (fightSong && fightSongLoaded) fightSong.volume = 1.0;
     }
     return;
   }
@@ -2734,8 +2874,6 @@ function updatePhase2(elapsed, dt) {
       phase2State = 'blackout';
       blackoutStart = now;
       clearExplosionParticles();
-      // Clear Phase 1 confetti fully
-      clearConfetti3D();
     }
     return;
   }
@@ -2775,6 +2913,8 @@ function updatePhase2(elapsed, dt) {
       // Save camera start position for smooth transition to eye-level
       cameraStartPos = camera.position.clone();
       cameraStartTarget = controls.target.clone();
+
+      startFightSongPlayback();
     }
     return;
   }
@@ -2825,7 +2965,6 @@ function updatePhase2(elapsed, dt) {
       // Show congratulations text
       const congrats = document.getElementById('congrats-overlay');
       congrats.style.display = 'block';
-      matchLogoHeight();
       setTimeout(() => { congrats.style.transform = 'scale(1)'; }, 50);
 
       // Show reset button
@@ -2862,6 +3001,7 @@ function resetPhase2() {
   clearExplosionParticles();
   clearBalloons();
   clearPhase2Confetti();
+  stopWickFuseAudio();
 
   monumentGroup.visible = false;
   monumentGroup.position.y = -5;
