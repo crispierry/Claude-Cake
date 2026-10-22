@@ -4,5 +4,8 @@
   "type": "module",
   "scripts": {
     "verify": "node scripts/verify.mjs"
+  },
+  "engines": {
+    "node": "22.23.4"
   }
 }
